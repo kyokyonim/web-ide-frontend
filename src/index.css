@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --efide-minimal-primary: #0969da;
+  --efide-minimal-border: #d0d7de;
+  --efide-minimal-bg: #f6f8fa;
+  --efide-saas-primary: #4f46e5;
+  --efide-saas-border: #e2e8f0;
+  --efide-dark-editor: #1e1e1e;
+  --efide-dark-panel: #252526;
+  --efide-dark-border: #3e3e42;
+  --efide-dark-tab-active: #1e1e1e;
+  --efide-dark-unsaved: #e39451;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-mono-editor {
+  font-family: "JetBrains Mono", "SF Mono", Consolas, Monaco, monospace;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* Figma 와이어프레임: 프로젝트 카드 그리드 간격 16px */
+.project-grid {
+  gap: 16px;
+}
+
+/* IDE 탭 미저장 표시 (주황 점) */
+.tab-unsaved-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--efide-dark-unsaved);
+}
