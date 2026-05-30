@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { Logo } from '../ui/Logo';
 import { figma } from '../../styles/figma-spec';
+import { BackendStatus } from './BackendStatus';
+import { ThemeToggle } from './ThemeToggle';
 
 interface TopBarProps {
   showBack?: boolean;
@@ -28,7 +30,9 @@ export function TopBar({ showBack, backLabel = '← 프로젝트 목록', backTo
           </Link>
         )}
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
+        <BackendStatus />
+        <ThemeToggle />
         <button
           className={`flex ${figma.sizes.iconBtn} items-center justify-center rounded-md ${theme.textMuted} hover:bg-black/5`}
           aria-label="레이아웃"

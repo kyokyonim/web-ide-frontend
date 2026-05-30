@@ -1,17 +1,125 @@
-import { useState } from 'react';
-import { mockChatMessages, mockComments, mockParticipants } from '../../data/mock';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { mockComments, mockParticipants } from '../../data/mock';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../ui/Button';
 import { roleBadgeClass } from '../../themes/tokens';
+import { getChatMessages, type BackendChatMessage } from '../../api/chat';
+import { connectChatSocket } from '../../lib/chatSocket';
+import type { ChatMessage } from '../../types';
 
 type Tab = 'chat' | 'comments' | 'participants';
 
-export function RightPanel() {
+function formatChatTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function toUiMessage(message: BackendChatMessage, myUserId: number | null): ChatMessage {
+  return {
+    id: String(message.id),
+    user: message.senderNickname,
+    avatar: message.senderNickname.slice(0, 2),
+    message: message.content,
+    time: formatChatTime(message.createdAt),
+    isMe: myUserId != null && message.senderId === myUserId,
+  };
+}
+
+type RightPanelProps = {
+  projectId?: string;
+};
+
+export function RightPanel({ projectId }: RightPanelProps) {
   const { theme, style } = useTheme();
   const [tab, setTab] = useState<Tab>('chat');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatError, setChatError] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatConnected, setChatConnected] = useState(false);
+  const chatSocketRef = useRef<ReturnType<typeof connectChatSocket> | null>(null);
+  const myUserId = Number(localStorage.getItem('userId')) || null;
+
+  const appendMessage = useCallback(
+    (message: BackendChatMessage) => {
+      setChatMessages((prev) => {
+        if (prev.some((item) => item.id === String(message.id))) {
+          return prev;
+        }
+        return [...prev, toUiMessage(message, myUserId)];
+      });
+    },
+    [myUserId],
+  );
+
+  useEffect(() => {
+    if (!projectId || tab !== 'chat') return;
+
+    let cancelled = false;
+
+    const loadHistory = async () => {
+      setChatLoading(true);
+      setChatError('');
+      try {
+        const response = await getChatMessages(projectId);
+        if (cancelled) return;
+        const ordered = [...response.data.messages].reverse();
+        setChatMessages(ordered.map((m) => toUiMessage(m, myUserId)));
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setChatError('채팅 기록을 불러오지 못했습니다.');
+        }
+      } finally {
+        if (!cancelled) setChatLoading(false);
+      }
+    };
+
+    void loadHistory();
+
+    try {
+      const socket = connectChatSocket(projectId, {
+        onMessage: (message) => {
+          if (!cancelled) appendMessage(message);
+        },
+        onError: (body) => {
+          if (!cancelled) setChatError(body);
+        },
+      });
+      chatSocketRef.current = socket;
+      setChatConnected(true);
+    } catch (err) {
+      console.error(err);
+      if (!cancelled) {
+        setChatError(err instanceof Error ? err.message : '채팅 연결에 실패했습니다.');
+      }
+    }
+
+    return () => {
+      cancelled = true;
+      chatSocketRef.current?.disconnect();
+      chatSocketRef.current = null;
+      setChatConnected(false);
+    };
+  }, [projectId, tab, myUserId, appendMessage]);
+
+  const handleSendChat = () => {
+    const trimmed = chatInput.trim();
+    if (!trimmed || !chatSocketRef.current) return;
+
+    try {
+      chatSocketRef.current.send(trimmed);
+      setChatInput('');
+      setChatError('');
+    } catch (err) {
+      console.error(err);
+      setChatError(err instanceof Error ? err.message : '메시지 전송에 실패했습니다.');
+    }
+  };
 
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: 'chat', label: '채팅', count: mockChatMessages.length },
+    { id: 'chat', label: '채팅', count: chatMessages.length },
     { id: 'comments', label: '댓글', count: mockComments.length },
     { id: 'participants', label: '참여자', count: mockParticipants.length },
   ];
@@ -34,8 +142,13 @@ export function RightPanel() {
 
       {tab === 'chat' && (
         <>
+          {chatError && <p className="border-b px-3 py-2 text-xs text-red-500">{chatError}</p>}
+          {!chatConnected && !chatError && (
+            <p className={`border-b px-3 py-2 text-xs ${theme.textMuted}`}>채팅 연결 중…</p>
+          )}
           <div className="flex-1 space-y-3 overflow-auto p-3">
-            {mockChatMessages.map((msg) => (
+            {chatLoading && <p className={`text-xs ${theme.textMuted}`}>기록 불러오는 중…</p>}
+            {chatMessages.map((msg) => (
               <div
                 key={msg.id}
                 className={`flex gap-2 ${msg.isMe ? 'flex-row-reverse' : ''}`}
@@ -62,8 +175,16 @@ export function RightPanel() {
               placeholder="메시지 입력..."
               className={`mb-2 w-full resize-none border px-3 py-2 text-xs outline-none ${theme.input}`}
               rows={2}
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendChat();
+                }
+              }}
             />
-            <Button size="sm" className="w-full">
+            <Button size="sm" className="w-full" onClick={handleSendChat} disabled={!chatConnected}>
               전송
             </Button>
           </div>

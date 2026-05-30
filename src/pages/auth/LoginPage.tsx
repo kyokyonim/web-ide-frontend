@@ -1,12 +1,36 @@
 import { Eye } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { figma } from '../../styles/figma-spec';
+import { login } from '../../api/auth';
 
 export function LoginPage() {
   const { theme, basePath, style } = useTheme();
+  const navigate = useNavigate();
+
+  const [email, setEmail] = useState('owner1@test.com');
+  const [password, setPassword] = useState('Test1234!');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      await login(email, password);
+      navigate(`${basePath}/projects`);
+    } catch (err) {
+      console.error(err);
+      setError('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div>
@@ -34,14 +58,22 @@ export function LoginPage() {
         <div className={`h-px flex-1 border-t ${theme.border}`} />
       </div>
 
-      <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
-        <Input label="Email" type="email" defaultValue="groom@naver.com" className={figma.sizes.inputHeight} />
+      <form className="space-y-5" onSubmit={handleLogin}>
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={figma.sizes.inputHeight}
+        />
+
         <div>
           <label className={`mb-1.5 block ${figma.typography.label} ${theme.text}`}>Password</label>
           <div className="relative">
             <input
               type="password"
-              defaultValue="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className={`w-full border px-3 py-2.5 pr-10 text-sm outline-none ${theme.input} ${figma.sizes.inputHeight} ${theme.text}`}
             />
             <button
@@ -53,6 +85,9 @@ export function LoginPage() {
             </button>
           </div>
         </div>
+
+        {error && <p className="text-sm text-red-500">{error}</p>}
+
         <div className="text-right">
           <Link
             to={`${basePath}/forgot-password`}
@@ -61,11 +96,14 @@ export function LoginPage() {
             Forgot Password?
           </Link>
         </div>
-        <Link to={`${basePath}/projects`}>
-          <Button type="button" className={`w-full ${figma.sizes.buttonHeight}`}>
-            Login
-          </Button>
-        </Link>
+
+        <Button
+          type="submit"
+          disabled={loading}
+          className={`w-full ${figma.sizes.buttonHeight}`}
+        >
+          {loading ? 'Logging in...' : 'Login'}
+        </Button>
       </form>
 
       <p className={`mt-8 text-center ${figma.typography.body} ${theme.textMuted}`}>

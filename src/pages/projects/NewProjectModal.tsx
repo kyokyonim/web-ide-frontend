@@ -3,22 +3,46 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { useTheme } from '../../context/ThemeContext';
+import { createProject, type ProjectLanguage } from '../../api/projects';
 
-const languages = [
-  { id: 'java', name: 'Java', emoji: '☕' },
-  { id: 'javascript', name: 'JavaScript', emoji: '🟨' },
-  { id: 'python', name: 'Python', emoji: '🐍' },
+const languages: { id: ProjectLanguage; name: string; emoji: string }[] = [
+  { id: 'JAVA', name: 'Java', emoji: '☕' },
+  { id: 'JAVASCRIPT', name: 'JavaScript', emoji: '🟨' },
+  { id: 'PYTHON', name: 'Python', emoji: '🐍' },
 ];
 
 interface NewProjectModalProps {
   open: boolean;
   onClose: () => void;
+  onCreated?: () => void;
 }
 
-export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
+export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalProps) {
   const { theme } = useTheme();
   const [name, setName] = useState('');
-  const [lang, setLang] = useState<string | null>(null);
+  const [lang, setLang] = useState<ProjectLanguage | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleCreate = async () => {
+    if (!name.trim() || !lang) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      await createProject(name.trim(), lang);
+      setName('');
+      setLang(null);
+      onCreated?.();
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError('프로젝트 생성에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Modal
@@ -31,7 +55,9 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
           <Button variant="secondary" onClick={onClose}>
             취소
           </Button>
-          <Button disabled={!name || !lang}>생성</Button>
+          <Button disabled={!name || !lang || loading} onClick={handleCreate}>
+            {loading ? '생성 중...' : '생성'}
+          </Button>
         </>
       }
     >
@@ -47,6 +73,7 @@ export function NewProjectModal({ open, onClose }: NewProjectModalProps) {
           <div className={`mt-1 text-right text-xs ${theme.textSubtle}`}>
             {name.length}/50
           </div>
+          {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
         </div>
 
         <div>
