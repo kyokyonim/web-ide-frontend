@@ -12,6 +12,8 @@ function getBrokerUrl() {
 export type ChatSocketHandlers = {
   onMessage: (message: BackendChatMessage) => void;
   onError?: (body: string) => void;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
 };
 
 export function connectChatSocket(projectId: string, handlers: ChatSocketHandlers) {
@@ -27,6 +29,8 @@ export function connectChatSocket(projectId: string, handlers: ChatSocketHandler
     },
     reconnectDelay: 5000,
     onConnect: () => {
+      handlers.onConnect?.();
+
       client.subscribe(`/topic/projects/${projectId}/chat`, (frame: IMessage) => {
         try {
           const message = JSON.parse(frame.body) as BackendChatMessage;
@@ -41,6 +45,12 @@ export function connectChatSocket(projectId: string, handlers: ChatSocketHandler
       client.subscribe('/user/queue/errors', (frame: IMessage) => {
         handlers.onError?.(frame.body);
       });
+    },
+    onDisconnect: () => {
+      handlers.onDisconnect?.();
+    },
+    onWebSocketClose: () => {
+      handlers.onDisconnect?.();
     },
   });
 
