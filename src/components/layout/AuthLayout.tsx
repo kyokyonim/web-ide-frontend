@@ -3,13 +3,17 @@ import { authFeatures } from '../../data/mock';
 import { useTheme } from '../../context/ThemeContext';
 import { Logo } from '../ui/Logo';
 import { figma } from '../../styles/figma-spec';
+import { ThemeToggle } from './ThemeToggle';
 
 export function AuthLayout() {
   const { theme, style } = useTheme();
   const isSaas = style === 'saas';
 
   return (
-    <div className={`flex min-h-full ${theme.pageBg}`}>
+    <div className={`relative flex min-h-full ${theme.pageBg}`}>
+      <div className="absolute right-5 top-5 z-10">
+        <ThemeToggle />
+      </div>
       <aside
         className={`hidden ${figma.layout.authSplit} flex-col justify-center border-r px-12 py-16 lg:flex ${theme.border} ${theme.surfaceMuted}`}
       >

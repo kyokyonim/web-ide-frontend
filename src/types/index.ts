@@ -1,5 +1,7 @@
 export type DesignStyle = 'minimal' | 'saas' | 'dark';
 
+export type ColorMode = 'light' | 'dark';
+
 export type UserRole = 'owner' | 'editor' | 'viewer';
 
 export type AccountStatus = 'active' | 'suspended';
