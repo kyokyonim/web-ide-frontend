@@ -1,32 +1,35 @@
 import { Eye } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { figma } from '../../styles/figma-spec';
-import { login } from '../../api/auth';
+import { authApi, saveTokens } from '../../api/auth';
 
 export function LoginPage() {
   const { theme, basePath, style } = useTheme();
   const navigate = useNavigate();
-
-  const [email, setEmail] = useState('owner1@test.com');
-  const [password, setPassword] = useState('Test1234!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate(`${basePath}/projects`);
+      const result = await authApi.login(email, password);
+      if (result.success) {
+        saveTokens(result.data.accessToken, result.data.refreshToken);
+        navigate(`${basePath}/projects`);
+      } else {
+        setError(result.message || '로그인에 실패했습니다.');
+      }
     } catch (err) {
-      console.error(err);
-      setError('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
+      setError('서버 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -41,6 +44,7 @@ export function LoginPage() {
 
       <button
         type="button"
+        onClick={() => authApi.googleLogin()}
         className={`mt-8 flex ${figma.sizes.inputHeight} w-full items-center justify-center gap-2 border font-medium transition ${theme.border} ${theme.radius} ${theme.text} hover:opacity-90`}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
@@ -66,7 +70,6 @@ export function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           className={figma.sizes.inputHeight}
         />
-
         <div>
           <label className={`mb-1.5 block ${figma.typography.label} ${theme.text}`}>Password</label>
           <div className="relative">
@@ -97,12 +100,8 @@ export function LoginPage() {
           </Link>
         </div>
 
-        <Button
-          type="submit"
-          disabled={loading}
-          className={`w-full ${figma.sizes.buttonHeight}`}
-        >
-          {loading ? 'Logging in...' : 'Login'}
+        <Button type="submit" disabled={loading} className={`w-full ${figma.sizes.buttonHeight}`}>
+          {loading ? '로그인 중...' : 'Login'}
         </Button>
       </form>
 
