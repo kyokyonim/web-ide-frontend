@@ -23,7 +23,7 @@ export function LoginPage() {
     try {
       const result = await authApi.login(email, password);
       if (result.success) {
-        saveTokens(result.data.accessToken, result.data.refreshToken);
+        saveTokens(result.data.accessToken, result.data.refreshToken, result.data.userId);
         navigate(`${basePath}/projects`);
       } else {
         setError(result.message || '로그인에 실패했습니다.');

@@ -40,9 +40,10 @@ export const authApi = {
 };
 
 // 토큰 저장
-export const saveTokens = (accessToken: string, refreshToken: string) => {
+export const saveTokens = (accessToken: string, refreshToken: string, userId?: number) => {
   localStorage.setItem('accessToken', accessToken);
   localStorage.setItem('refreshToken', refreshToken);
+  if (userId) { localStorage.setItem('userId', String(userId)); }
 };
 
 // 토큰 가져오기
