@@ -78,10 +78,7 @@ export function ResetPasswordPage() {
 
   return (
     <div>
-      <div className={`inline-flex h-8 w-8 items-center justify-center rounded text-sm font-bold ${theme.primary}`}>
-        1
-      </div>
-      <h1 className={`mt-4 ${figma.typography.h2} ${theme.text}`}>비밀번호 재설정</h1>
+      <h1 className={`${figma.typography.h2} ${theme.text}`}>비밀번호 재설정</h1>
       <p className={`mt-2 ${figma.typography.body} ${theme.textMuted}`}>
         인증받은 계정 사용자를 위해 새로운 비밀번호를 설정해 주세요.
       </p>
