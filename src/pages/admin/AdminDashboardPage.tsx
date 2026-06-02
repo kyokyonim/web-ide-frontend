@@ -1,7 +1,7 @@
 import { AlertTriangle, FolderKanban, MessageSquare, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
-import { mockChatFeed, mockDashboardHistory } from '../../data/mock';
+import { mockDashboardHistory, mockRecentChats, mockRecentComments } from '../../data/mock';
 import { useTheme } from '../../context/ThemeContext';
 
 export function AdminDashboardPage() {
@@ -70,18 +70,20 @@ export function AdminDashboardPage() {
         <Card>
           <div className="mb-4 flex items-center justify-between">
             <h2 className={`flex items-center gap-2 font-semibold ${theme.text}`}>
-              <MessageSquare size={18} /> 채팅 · 댓글 현황
+              <MessageSquare size={18} /> 최근 채팅
             </h2>
             <button className={`text-xs text-blue-600`}>전체 보기</button>
           </div>
           <ul className="space-y-3">
-            {mockChatFeed.map((item, i) => (
+            {mockRecentChats.map((item, i) => (
               <li key={i} className="flex items-start gap-3">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-500 text-[10px] text-white">
                   {item.user}
                 </span>
-                <div>
-                  <p className={`text-sm ${theme.text}`}>{item.text}</p>
+                <div className="min-w-0">
+                  <p className={`text-sm ${theme.text}`}>
+                    {item.nickname}님이 {item.project}에 메시지를 보냈습니다.
+                  </p>
                   <span className={`text-xs ${theme.textSubtle}`}>{item.time}</span>
                 </div>
               </li>
@@ -90,6 +92,31 @@ export function AdminDashboardPage() {
         </Card>
 
         <Card>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className={`flex items-center gap-2 font-semibold ${theme.text}`}>
+              <MessageSquare size={18} /> 최근 댓글
+            </h2>
+            <button className={`text-xs text-blue-600`}>전체 보기</button>
+          </div>
+          <ul className="space-y-3">
+            {mockRecentComments.map((item, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] text-white">
+                  {item.user}
+                </span>
+                <div className="min-w-0">
+                  <div className={`text-xs font-medium ${theme.textSubtle}`}>
+                    {item.project} · {item.file}
+                  </div>
+                  <p className={`text-sm ${theme.text}`}>{item.text}</p>
+                  <span className={`text-xs ${theme.textSubtle}`}>{item.time}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card className="lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <h2 className={`font-semibold ${theme.text}`}>프로젝트 히스토리</h2>
             <button className={`text-xs text-blue-600`}>전체 보기</button>

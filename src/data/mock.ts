@@ -171,6 +171,18 @@ export const mockChatFeed = [
   { user: 'HG', text: 'hong_gd님이 Team Alpha에 초대되었습니다', time: '15분 전' },
 ];
 
+export const mockRecentChats = [
+  { user: 'JH', nickname: 'junho_dev', project: 'Web IDE Steam', time: '5분 전' },
+  { user: 'JS', nickname: 'jisu_code', project: 'api-gateway', time: '8분 전' },
+  { user: 'HG', nickname: 'hong_gd', project: 'Team Alpha', time: '15분 전' },
+];
+
+export const mockRecentComments = [
+  { user: 'DE', project: 'e-commerce-frontend', file: 'main.tsx:42', text: 'props 타입을 조금 더 좁히면 좋겠습니다.', time: '2분 전' },
+  { user: 'MS', project: 'metrics-dashboard', file: 'chart.py:18', text: '예외 처리 케이스가 하나 빠진 것 같아요.', time: '12분 전' },
+  { user: 'CH', project: 'Web IDE Steam', file: 'FileTree.tsx:27', text: '폴더 토글 상태 보존이 필요해 보입니다.', time: '20분 전' },
+];
+
 export const profileColors = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B',
 ];
