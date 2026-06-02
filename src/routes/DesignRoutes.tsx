@@ -31,7 +31,10 @@ function DesignLayout() {
             <Route path="login" element={<LoginPage />} />
             <Route path="signup" element={<SignupPage />} />
             <Route path="reset-password" element={<ResetPasswordPage />} />
-            <Route path="forgot-password" element={<LoginPage />} />
+            <Route
+              path="forgot-password"
+              element={<Navigate to={`/design/${validStyle}/reset-password`} replace />}
+            />
           </Route>
 
           <Route element={<AppShell />}>

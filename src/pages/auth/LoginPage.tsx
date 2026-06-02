@@ -90,7 +90,7 @@ export function LoginPage() {
 
         <div className="text-right">
           <Link
-            to={`${basePath}/forgot-password`}
+            to={`${basePath}/reset-password`}
             className={`${figma.typography.caption} text-[#0969DA] hover:underline ${style === 'saas' ? '!text-[#4F46E5]' : ''}`}
           >
             Forgot Password?
