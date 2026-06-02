@@ -1,16 +1,87 @@
 import { Camera, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { profileColors } from '../../data/mock';
 import { useTheme } from '../../context/ThemeContext';
+import { getAccessToken } from '../../api/auth';
+
+const BASE_URL = 'http://localhost:8080';
 
 export function ProfilePage() {
   const { theme } = useTheme();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [color, setColor] = useState(profileColors[0]);
+  const [nickname, setNickname] = useState('');
+  const [originalNickname, setOriginalNickname] = useState('');
+  const [email, setEmail] = useState('');
+  const [nicknameChecked, setNicknameChecked] = useState(false);
+  const [nicknameMessage, setNicknameMessage] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
+
+  useEffect(() => {
+    const fetchMyInfo = async () => {
+      const token = getAccessToken();
+      if (!token) return;
+
+      const res = await fetch(`${BASE_URL}/api/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await res.json();
+      if (result.success) {
+        setNickname(result.data.nickname);
+        setOriginalNickname(result.data.nickname);
+        setEmail(result.data.email);
+        setColor(result.data.profileColor || profileColors[0]);
+      }
+    };
+    fetchMyInfo();
+  }, []);
+
+  const handleCheckNickname = async () => {
+    if (!nickname) return;
+
+    if (nickname === originalNickname) {
+      setNicknameChecked(true);
+      setNicknameMessage('현재 사용 중인 닉네임입니다.');
+      return;
+    }
+
+    const res = await fetch(`${BASE_URL}/api/users/check-nickname?nickname=${nickname}`);
+    const result = await res.json();
+    if (result.data?.available) {
+      setNicknameChecked(true);
+      setNicknameMessage('사용 가능한 닉네임입니다.');
+    } else {
+      setNicknameChecked(false);
+      setNicknameMessage('이미 사용 중인 닉네임입니다.');
+    }
+  };
+
+  const handleSave = async () => {
+    const token = getAccessToken();
+    if (!token) return;
+
+    const res = await fetch(`${BASE_URL}/api/users/me/profile`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ nickname, profileColor: color }),
+    });
+    const result = await res.json();
+    if (result.success) {
+      setSaveMessage('저장되었습니다!');
+      setOriginalNickname(nickname);
+      setNicknameChecked(false);
+      setNicknameMessage('');
+    } else {
+      setSaveMessage(result.message || '저장 실패');
+    }
+  };
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-6">
@@ -32,7 +103,7 @@ export function ProfilePage() {
             className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold text-white"
             style={{ backgroundColor: color }}
           >
-            J
+            {nickname.charAt(0).toUpperCase()}
           </div>
           <button className="absolute bottom-0 right-0 rounded-full bg-slate-800 p-1.5 text-white">
             <Camera size={14} />
@@ -54,27 +125,33 @@ export function ProfilePage() {
         </div>
 
         <div className="mb-4 flex gap-2">
-          <Input label="닉네임" defaultValue="jisu" className="flex-1" />
-          <Button variant="secondary" size="sm" className="mt-6">
+          <Input
+            label="닉네임"
+            value={nickname}
+            onChange={(e) => { setNickname(e.target.value); setNicknameChecked(false); setNicknameMessage(''); }}
+            className="flex-1"
+          />
+          <Button variant="secondary" size="sm" className="mt-6" onClick={handleCheckNickname}>
             중복 확인
           </Button>
         </div>
-        <p className={`mb-4 text-xs text-green-600`}>사용 가능한 닉네임입니다.</p>
+        {nicknameMessage && (
+          <p className={`mb-4 text-xs ${nicknameChecked ? 'text-green-600' : 'text-red-500'}`}>
+            {nicknameMessage}
+          </p>
+        )}
 
         <Input
           label="이메일"
-          defaultValue="sludbot12@google.com"
+          value={email}
           readOnly
           hint="로그인 이메일은 변경할 수 없습니다."
         />
 
         <div className={`mt-6 flex items-center justify-between border-t pt-4 ${theme.border}`}>
-          <span className={`text-xs ${theme.textSubtle}`}>마지막 저장 방금 전</span>
+          <span className={`text-xs ${theme.textSubtle}`}>{saveMessage}</span>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm">
-              되돌리기
-            </Button>
-            <Button size="sm">저장</Button>
+            <Button size="sm" onClick={handleSave}>저장</Button>
           </div>
         </div>
       </Card>
@@ -88,11 +165,11 @@ export function ProfilePage() {
           <Input label="현재 비밀번호" type="password" />
           <div className="grid gap-4 sm:grid-cols-2">
             <Input label="새 비밀번호" type="password" />
-            <Input label="새 비밀번호 확인" type="password" error="비밀번호가 일치하지 않습니다" />
+            <Input label="새 비밀번호 확인" type="password" />
           </div>
         </div>
         <div className={`mt-6 flex items-center justify-between border-t pt-4 ${theme.border}`}>
-          <span className={`text-xs ${theme.textSubtle}`}>마지막 저장 방금 전</span>
+          <span className={`text-xs ${theme.textSubtle}`}></span>
           <Button size="sm">비밀번호 변경</Button>
         </div>
       </Card>
