@@ -30,3 +30,14 @@ export async function login(email: string, password: string) {
 
   return response.data;
 }
+
+export async function resetPassword(token: string, newPassword: string) {
+  return apiFetch('/api/auth/reset-password', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({
+      token,
+      newPassword,
+    }),
+  });
+}

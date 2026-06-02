@@ -3,6 +3,7 @@ import { ThemeProvider } from '../context/ThemeContext';
 import { AuthLayout } from '../components/layout/AuthLayout';
 import { AppShell, AdminShell } from '../components/layout/AppShell';
 import { LoginPage } from '../pages/auth/LoginPage';
+import { ResetPasswordPage } from '../pages/auth/ResetPasswordPage';
 import { SignupPage } from '../pages/auth/SignupPage';
 import { ProjectListPage } from '../pages/projects/ProjectListPage';
 import { ProjectSettingsPage } from '../pages/projects/ProjectSettingsPage';
@@ -29,6 +30,7 @@ function DesignLayout() {
           <Route element={<AuthLayout />}>
             <Route path="login" element={<LoginPage />} />
             <Route path="signup" element={<SignupPage />} />
+            <Route path="reset-password" element={<ResetPasswordPage />} />
             <Route path="forgot-password" element={<LoginPage />} />
           </Route>
 
