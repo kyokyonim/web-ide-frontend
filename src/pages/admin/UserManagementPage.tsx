@@ -143,7 +143,7 @@ export function UserManagementPage() {
       {error && <p className="text-sm text-red-500">{error}</p>}
 
       <Card>
-        <div className="mb-4 flex flex-wrap gap-3">
+        <div className="mb-4 flex flex-wrap items-end gap-3">
           <Select
             label="사용자 분류"
             value={category}
@@ -169,7 +169,7 @@ export function UserManagementPage() {
               { value: 'BANNED', label: '정지' },
             ]}
           />
-          <div className="flex flex-1 gap-2 min-w-[240px]">
+          <div className="flex min-w-[240px] flex-1 items-center gap-2">
             <input
               placeholder="닉네임 또는 이메일 검색"
               value={keywordInput}
@@ -179,9 +179,9 @@ export function UserManagementPage() {
                   handleSearch();
                 }
               }}
-              className={`flex-1 border px-3 py-2 text-sm ${theme.input}`}
+              className={`h-10 flex-1 border px-3 text-sm outline-none ${theme.input}`}
             />
-            <Button size="sm" onClick={handleSearch}>
+            <Button size="sm" className="h-10 shrink-0" onClick={handleSearch}>
               검색
             </Button>
           </div>
