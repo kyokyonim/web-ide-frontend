@@ -15,6 +15,15 @@ function formatChatTime(iso: string) {
   return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatChatError(body: string) {
+  try {
+    const parsed = JSON.parse(body) as { message?: string; code?: string };
+    return parsed.message || parsed.code || body;
+  } catch {
+    return body;
+  }
+}
+
 function toUiMessage(message: BackendChatMessage, myUserId: number | null): ChatMessage {
   return {
     id: String(message.id),
@@ -37,7 +46,10 @@ export function RightPanel({ projectId }: RightPanelProps) {
   const [chatInput, setChatInput] = useState('');
   const [chatError, setChatError] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [olderLoading, setOlderLoading] = useState(false);
   const [chatConnected, setChatConnected] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
   const chatSocketRef = useRef<ReturnType<typeof connectChatSocket> | null>(null);
   const myUserId = Number(localStorage.getItem('userId')) || null;
 
@@ -57,6 +69,7 @@ export function RightPanel({ projectId }: RightPanelProps) {
     if (!projectId || tab !== 'chat') return;
 
     let cancelled = false;
+    setChatConnected(false);
 
     const loadHistory = async () => {
       setChatLoading(true);
@@ -66,6 +79,8 @@ export function RightPanel({ projectId }: RightPanelProps) {
         if (cancelled) return;
         const ordered = [...response.data.messages].reverse();
         setChatMessages(ordered.map((m) => toUiMessage(m, myUserId)));
+        setHasMoreMessages(response.data.hasMore);
+        setNextCursor(response.data.nextCursor);
       } catch (err) {
         console.error(err);
         if (!cancelled) {
@@ -84,11 +99,16 @@ export function RightPanel({ projectId }: RightPanelProps) {
           if (!cancelled) appendMessage(message);
         },
         onError: (body) => {
-          if (!cancelled) setChatError(body);
+          if (!cancelled) setChatError(formatChatError(body));
+        },
+        onConnect: () => {
+          if (!cancelled) setChatConnected(true);
+        },
+        onDisconnect: () => {
+          if (!cancelled) setChatConnected(false);
         },
       });
       chatSocketRef.current = socket;
-      setChatConnected(true);
     } catch (err) {
       console.error(err);
       if (!cancelled) {
@@ -103,6 +123,30 @@ export function RightPanel({ projectId }: RightPanelProps) {
       setChatConnected(false);
     };
   }, [projectId, tab, myUserId, appendMessage]);
+
+  const handleLoadOlderMessages = async () => {
+    if (!projectId || !nextCursor || olderLoading) return;
+
+    setOlderLoading(true);
+    setChatError('');
+    try {
+      const response = await getChatMessages(projectId, 50, nextCursor);
+      const ordered = [...response.data.messages].reverse().map((m) => toUiMessage(m, myUserId));
+
+      setChatMessages((prev) => {
+        const existingIds = new Set(prev.map((message) => message.id));
+        const newMessages = ordered.filter((message) => !existingIds.has(message.id));
+        return [...newMessages, ...prev];
+      });
+      setHasMoreMessages(response.data.hasMore);
+      setNextCursor(response.data.nextCursor);
+    } catch (err) {
+      console.error(err);
+      setChatError(err instanceof Error ? err.message : '이전 채팅 기록을 불러오지 못했습니다.');
+    } finally {
+      setOlderLoading(false);
+    }
+  };
 
   const handleSendChat = () => {
     const trimmed = chatInput.trim();
@@ -148,6 +192,18 @@ export function RightPanel({ projectId }: RightPanelProps) {
           )}
           <div className="flex-1 space-y-3 overflow-auto p-3">
             {chatLoading && <p className={`text-xs ${theme.textMuted}`}>기록 불러오는 중…</p>}
+            {!chatLoading && hasMoreMessages && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="w-full"
+                onClick={handleLoadOlderMessages}
+                disabled={olderLoading}
+              >
+                {olderLoading ? '불러오는 중…' : '이전 메시지 더보기'}
+              </Button>
+            )}
             {chatMessages.map((msg) => (
               <div
                 key={msg.id}
