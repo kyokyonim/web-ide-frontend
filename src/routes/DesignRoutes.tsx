@@ -14,6 +14,7 @@ import { UserManagementPage } from '../pages/admin/UserManagementPage';
 import { SecurityManagementPage } from '../pages/admin/SecurityManagementPage';
 import { AdminProjectsPage } from '../pages/admin/AdminProjectsPage';
 import type { DesignStyle } from '../types';
+import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
 
 function DesignLayout() {
   const { style } = useParams<{ style: string }>();
@@ -31,10 +32,7 @@ function DesignLayout() {
             <Route path="login" element={<LoginPage />} />
             <Route path="signup" element={<SignupPage />} />
             <Route path="reset-password" element={<ResetPasswordPage />} />
-            <Route
-              path="forgot-password"
-              element={<Navigate to={`/design/${validStyle}/reset-password`} replace />}
-            />
+          <Route path="forgot-password" element={<ForgotPasswordPage />} />
           </Route>
 
           <Route element={<AppShell />}>
