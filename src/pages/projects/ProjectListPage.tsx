@@ -8,15 +8,26 @@ import { Select } from '../../components/ui/Select';
 import { useTheme } from '../../context/ThemeContext';
 import { figma } from '../../styles/figma-spec';
 import type { Project, UserRole } from '../../types';
-import { getMyProjects, type BackendProject } from '../../api/projects';
+import {
+  getMyProjects,
+  getProjectMembers,
+  type BackendProject,
+  type BackendProjectMember,
+} from '../../api/projects';
 import { NewProjectModal } from './NewProjectModal';
 
-function normalizeRole(role?: string): UserRole {
+function normalizeRole(role?: string): UserRole | null {
   const lower = role?.toLowerCase();
 
+  if (lower === 'owner') return 'owner';
   if (lower === 'editor') return 'editor';
   if (lower === 'viewer') return 'viewer';
-  return 'owner';
+  return null;
+}
+
+function getCurrentUserId() {
+  const storedUserId = localStorage.getItem('userId');
+  return storedUserId ? Number(storedUserId) : null;
 }
 
 function formatDate(value?: string) {
@@ -28,12 +39,30 @@ function formatDate(value?: string) {
   return date.toLocaleString('ko-KR');
 }
 
-function toProject(p: BackendProject): Project {
+function resolveProjectRole(
+  project: BackendProject,
+  members: BackendProjectMember[] | undefined,
+  currentUserId: number | null
+): UserRole {
+  const currentMember = members?.find((member) => member.userId === currentUserId);
+  const apiRole = normalizeRole(currentMember?.role ?? project.myRole ?? project.role);
+
+  if (apiRole) return apiRole;
+  if (currentUserId != null && project.ownerId === currentUserId) return 'owner';
+
+  return 'viewer';
+}
+
+function toProject(
+  p: BackendProject,
+  members: BackendProjectMember[] | undefined,
+  currentUserId: number | null
+): Project {
   return {
     id: String(p.id),
     name: p.projectName ?? p.name ?? `Project ${p.id}`,
-    role: normalizeRole(p.myRole ?? p.role),
-    participants: p.memberCount ?? p.participants ?? 1,
+    role: resolveProjectRole(p, members, currentUserId),
+    participants: members?.length ?? p.memberCount ?? p.participants ?? 1,
     lastModified: formatDate(p.updatedAt ?? p.createdAt),
     languages: [p.language ?? 'JAVA'],
   };
@@ -53,7 +82,20 @@ export function ProjectListPage() {
 
     try {
       const response = await getMyProjects();
-      setProjects(response.data.map(toProject));
+      const currentUserId = getCurrentUserId();
+      const resolvedProjects = await Promise.all(
+        response.data.map(async (project) => {
+          try {
+            const memberResponse = await getProjectMembers(String(project.id));
+            return toProject(project, memberResponse.data, currentUserId);
+          } catch (memberError) {
+            console.error(memberError);
+            return toProject(project, undefined, currentUserId);
+          }
+        })
+      );
+
+      setProjects(resolvedProjects);
     } catch (err) {
       console.error(err);
       setError('프로젝트 목록을 불러오지 못했습니다.');
@@ -142,8 +184,9 @@ export function ProjectListPage() {
                 </Link>
                 {p.role === 'owner' ? (
                   <Link
-                    to={`${basePath}/projects/settings`}
-                    className={`flex h-8 w-8 items-center justify-center rounded hover:bg-black/5`}
+                    to={`${basePath}/projects/${p.id}/settings`}
+                    className="flex h-8 w-8 items-center justify-center rounded hover:bg-black/5"
+                    aria-label={`${p.name} 프로젝트 설정`}
                   >
                     <Settings size={16} className={theme.textMuted} />
                   </Link>
@@ -180,7 +223,10 @@ export function ProjectListPage() {
                   {p.lastModified}
                 </span>
                 {p.role === 'owner' && (
-                  <Link to={`${basePath}/projects/settings`}>
+                  <Link
+                    to={`${basePath}/projects/${p.id}/settings`}
+                    aria-label={`${p.name} 프로젝트 설정`}
+                  >
                     <Settings size={16} className={theme.textMuted} />
                   </Link>
                 )}

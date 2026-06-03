@@ -37,7 +37,8 @@ function DesignLayout() {
 
           <Route element={<AppShell />}>
             <Route path="projects" element={<ProjectListPage />} />
-            <Route path="projects/settings" element={<ProjectSettingsPage />} />
+            <Route path="projects/settings" element={<Navigate to="../projects" replace />} />
+            <Route path="projects/:projectId/settings" element={<ProjectSettingsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 
