@@ -3,6 +3,7 @@ import { ThemeProvider } from '../context/ThemeContext';
 import { AuthLayout } from '../components/layout/AuthLayout';
 import { AppShell, AdminShell } from '../components/layout/AppShell';
 import { LoginPage } from '../pages/auth/LoginPage';
+import { ResetPasswordPage } from '../pages/auth/ResetPasswordPage';
 import { SignupPage } from '../pages/auth/SignupPage';
 import { ProjectListPage } from '../pages/projects/ProjectListPage';
 import { ProjectSettingsPage } from '../pages/projects/ProjectSettingsPage';
@@ -13,6 +14,7 @@ import { UserManagementPage } from '../pages/admin/UserManagementPage';
 import { SecurityManagementPage } from '../pages/admin/SecurityManagementPage';
 import { AdminProjectsPage } from '../pages/admin/AdminProjectsPage';
 import type { DesignStyle } from '../types';
+import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
 
 function DesignLayout() {
   const { style } = useParams<{ style: string }>();
@@ -29,7 +31,8 @@ function DesignLayout() {
           <Route element={<AuthLayout />}>
             <Route path="login" element={<LoginPage />} />
             <Route path="signup" element={<SignupPage />} />
-            <Route path="forgot-password" element={<LoginPage />} />
+            <Route path="reset-password" element={<ResetPasswordPage />} />
+          <Route path="forgot-password" element={<ForgotPasswordPage />} />
           </Route>
 
           <Route element={<AppShell />}>

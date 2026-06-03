@@ -16,9 +16,14 @@ export type BackendChatMessageList = {
   nextCursor: number | null;
 };
 
-export async function getChatMessages(projectId: string, size = 50) {
+export async function getChatMessages(projectId: string, size = 50, before?: number | null) {
+  const params = new URLSearchParams({ size: String(size) });
+  if (before != null) {
+    params.set('before', String(before));
+  }
+
   return apiFetch<ApiResponse<BackendChatMessageList>>(
-    `/api/projects/${projectId}/chats?size=${size}`,
+    `/api/projects/${projectId}/chats?${params.toString()}`,
     { method: 'GET' },
   );
 }

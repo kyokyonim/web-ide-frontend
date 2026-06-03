@@ -1,5 +1,5 @@
 import { FileCode, Moon, Settings } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FileTree } from '../../components/ide/FileTree';
 import { CodeEditor } from '../../components/ide/CodeEditor';
@@ -7,14 +7,18 @@ import { RightPanel } from '../../components/ide/RightPanel';
 import { TopBar } from '../../components/layout/TopBar';
 import { useTheme } from '../../context/ThemeContext';
 import { figma } from '../../styles/figma-spec';
-import { updatePresence } from '../../api/presence';
+import { disconnectPresence, updatePresence } from '../../api/presence';
 import {
   createFile,
   createFolder,
   getFileDetail,
   getFileTree,
+  lockFile,
   updateFileContent,
+  type BackendLockStatus,
+  type BackendLockUser,
 } from '../../api/files';
+import { connectFileLockSocket } from '../../lib/fileLockSocket';
 import { mapBackendFileTree } from '../../lib/fileTreeMapper';
 import type { FileNode } from '../../types';
 
@@ -36,11 +40,22 @@ export function IDEPage() {
   const [fileSaving, setFileSaving] = useState(false);
   const [fileError, setFileError] = useState('');
 
+  const [lockError, setLockError] = useState('');
+  const fileLockSocketRef = useRef<ReturnType<typeof connectFileLockSocket> | null>(null);
+
+  const myUserId = Number(localStorage.getItem('userId')) || null;
+
+  const [activeLockStatus, setActiveLockStatus] = useState<BackendLockStatus>('UNLOCKED');
+  const [activeLockedBy, setActiveLockedBy] = useState<BackendLockUser | null>(null);
+
+  const unsaved = fileContent !== savedContent;
+
   const loadFileTree = useCallback(async () => {
     if (!projectId) return;
 
     setTreeLoading(true);
     setTreeError('');
+
     try {
       const response = await getFileTree(projectId);
       setFileTree(mapBackendFileTree(response.data));
@@ -53,15 +68,37 @@ export function IDEPage() {
   }, [projectId]);
 
   useEffect(() => {
-    void loadFileTree();
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (!cancelled) {
+        void loadFileTree();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [loadFileTree]);
 
   useEffect(() => {
     if (!projectId) return;
 
+    const disconnect = (keepalive = false) => {
+      disconnectPresence(projectId, keepalive).catch((err) => {
+        console.error('Presence disconnect failed:', err);
+      });
+    };
+
+    const handlePageHide = () => {
+      disconnect(true);
+    };
+
     updatePresence(projectId).catch((err) => {
       console.error('Presence update failed:', err);
     });
+
+    window.addEventListener('pagehide', handlePageHide);
 
     const timer = window.setInterval(() => {
       updatePresence(projectId).catch((err) => {
@@ -69,8 +106,83 @@ export function IDEPage() {
       });
     }, 30000);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('pagehide', handlePageHide);
+      disconnect();
+    };
   }, [projectId]);
+
+  useEffect(() => {
+    if (!unsaved) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [unsaved]);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    let cancelled = false;
+    let socket: ReturnType<typeof connectFileLockSocket> | null = null;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      try {
+        socket = connectFileLockSocket(projectId, {
+          onLockEvent: (event) => {
+            if (cancelled) return;
+
+            if (String(event.fileId) !== activeFileId) {
+              return;
+            }
+
+            if (event.type === 'UNLOCKED') {
+              setActiveLockStatus('UNLOCKED');
+              setActiveLockedBy(null);
+              return;
+            }
+
+            if (event.lockedBy?.userId === myUserId) {
+              setActiveLockStatus('LOCKED_BY_ME');
+            } else {
+              setActiveLockStatus('LOCKED_BY_OTHER');
+            }
+
+            setActiveLockedBy(event.lockedBy);
+          },
+          onError: (body) => {
+            if (!cancelled) {
+              setLockError(body);
+            }
+          },
+        });
+
+        fileLockSocketRef.current = socket;
+      } catch (err) {
+        console.error(err);
+
+        if (!cancelled) {
+          setLockError(err instanceof Error ? err.message : '파일 잠금 알림 연결에 실패했습니다.');
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      socket?.disconnect();
+      fileLockSocketRef.current = null;
+    };
+  }, [projectId, activeFileId, myUserId]);
 
   const handleSelectFile = async (fileId: string, fileName: string) => {
     if (!projectId) return;
@@ -83,12 +195,18 @@ export function IDEPage() {
     try {
       const response = await getFileDetail(projectId, fileId);
       const content = response.data.content ?? '';
+
       setFileContent(content);
       setSavedContent(content);
       setFileVersion(response.data.version);
+
+      setActiveLockStatus(response.data.lockStatus);
+      setActiveLockedBy(response.data.lockedBy);
     } catch (err) {
       console.error(err);
-      setFileError('파일을 불러오지 못했습니다.');
+      setFileError(err instanceof Error ? err.message : '파일을 불러오지 못했습니다.');
+      setActiveLockStatus('UNLOCKED');
+      setActiveLockedBy(null);
     } finally {
       setFileLoading(false);
     }
@@ -105,8 +223,13 @@ export function IDEPage() {
         content: fileContent,
         version: fileVersion,
       });
+
       setFileVersion(response.data.version);
       setSavedContent(fileContent);
+
+      // 백엔드에서 저장 성공 후 lock을 자동 해제하므로 프론트 상태도 맞춤
+      setActiveLockStatus('UNLOCKED');
+      setActiveLockedBy(null);
     } catch (err) {
       console.error(err);
       setFileError(err instanceof Error ? err.message : '파일 저장에 실패했습니다.');
@@ -122,7 +245,11 @@ export function IDEPage() {
     if (!name?.trim()) return;
 
     try {
-      const response = await createFile(projectId, { name: name.trim(), content: '' });
+      const response = await createFile(projectId, {
+        name: name.trim(),
+        content: '',
+      });
+
       await loadFileTree();
       await handleSelectFile(String(response.data.id), name.trim());
     } catch (err) {
@@ -138,12 +265,33 @@ export function IDEPage() {
     if (!name?.trim()) return;
 
     try {
-      await createFolder(projectId, { name: name.trim() });
+      await createFolder(projectId, {
+        name: name.trim(),
+      });
+
       await loadFileTree();
     } catch (err) {
       console.error(err);
       setTreeError(err instanceof Error ? err.message : '폴더 생성에 실패했습니다.');
     }
+  };
+
+  const handleChangeFileContent = async (value: string) => {
+    if (!projectId || !activeFileId) return;
+
+    if (activeLockStatus === 'UNLOCKED') {
+      try {
+        const response = await lockFile(projectId, activeFileId);
+        setActiveLockStatus(response.data.lockStatus);
+        setActiveLockedBy(response.data.lockedBy);
+      } catch (err) {
+        console.error(err);
+        setFileError(err instanceof Error ? err.message : '파일 잠금에 실패했습니다.');
+        return;
+      }
+    }
+
+    setFileContent(value);
   };
 
   const handleToggleTheme = () => {
@@ -156,15 +304,29 @@ export function IDEPage() {
     }
   };
 
-  const unsaved = fileContent !== savedContent;
+  const editorReadOnly =
+    !activeFileId ||
+    fileLoading ||
+    activeLockStatus === 'LOCKED_BY_OTHER' ||
+    activeLockStatus === 'VIEWER_MODE';
+
+  const readOnlyBanner = !activeFileId
+    ? '왼쪽에서 파일을 선택하세요.'
+    : activeLockStatus === 'LOCKED_BY_ME'
+      ? '내가 편집 중'
+      : activeLockStatus === 'LOCKED_BY_OTHER'
+        ? `${activeLockedBy?.nickname ?? '다른 사용자'}님이 편집 중입니다.`
+        : activeLockStatus === 'VIEWER_MODE'
+          ? '뷰어 모드'
+          : undefined;
 
   return (
     <div className={`flex h-full flex-col ${theme.pageBg}`}>
       <TopBar showBack backTo={`${basePath}/projects`} />
 
-      {(treeError || fileError) && (
+      {(treeError || fileError || lockError) && (
         <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">
-          {treeError || fileError}
+          {treeError || fileError || lockError}
         </div>
       )}
 
@@ -217,10 +379,10 @@ export function IDEPage() {
             filename={activeFileName}
             code={fileLoading ? '불러오는 중…' : fileContent}
             unsaved={unsaved}
-            readOnly={!activeFileId || fileLoading}
-            readOnlyBanner={!activeFileId ? '왼쪽에서 파일을 선택하세요.' : undefined}
+            readOnly={editorReadOnly}
+            readOnlyBanner={readOnlyBanner}
             saving={fileSaving}
-            onChange={setFileContent}
+            onChange={(value) => void handleChangeFileContent(value)}
             onSave={() => void handleSaveFile()}
           />
         </div>
