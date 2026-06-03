@@ -50,6 +50,7 @@ export function clearAuthStorage() {
   localStorage.removeItem('userId');
   localStorage.removeItem('nickname');
   localStorage.removeItem('profileColor');
+  localStorage.removeItem('role');
 }
 
 export async function logout() {
