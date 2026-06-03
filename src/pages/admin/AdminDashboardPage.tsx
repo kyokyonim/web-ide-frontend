@@ -1,4 +1,4 @@
-import { FolderKanban, MessageSquare, Users } from 'lucide-react';
+import { AlertTriangle, FolderKanban, MessageSquare, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getAdminDashboardStats, type AdminDashboardStats } from '../../api/adminDashboard';
@@ -101,6 +101,22 @@ export function AdminDashboardPage() {
       sub: '신규 프로젝트 수는 추후 집계 예정',
       to: `${basePath}/admin/projects`,
     },
+    {
+      icon: AlertTriangle,
+      color: 'text-red-500',
+      title: '데이터 사용량 위험',
+      main: '2건',
+      sub: '800MB 초과 프로젝트 2건',
+      to: `${basePath}/admin/projects`,
+    },
+    {
+      icon: AlertTriangle,
+      color: 'text-orange-500',
+      title: '보안 이벤트',
+      main: '2건',
+      sub: '로그인 실패 외 1건',
+      to: `${basePath}/admin/security`,
+    },
   ];
 
   return (
@@ -110,7 +126,7 @@ export function AdminDashboardPage() {
         <p className={`text-sm ${theme.textMuted}`}>2026년 5월 13일 기준</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((s) => (
           <Link key={s.title} to={s.to}>
             <Card hover>
