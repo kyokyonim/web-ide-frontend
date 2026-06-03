@@ -9,6 +9,7 @@ type LoginResponse = {
     userId: number;
     nickname: string;
     profileColor: string;
+    role: 'USER' | 'ADMIN';
   };
 };
 
@@ -27,6 +28,7 @@ export async function login(email: string, password: string) {
   localStorage.setItem('userId', String(response.data.userId));
   localStorage.setItem('nickname', response.data.nickname);
   localStorage.setItem('profileColor', response.data.profileColor);
+  localStorage.setItem('role', response.data.role);
 
   return response.data;
 }
@@ -48,6 +50,7 @@ export function clearAuthStorage() {
   localStorage.removeItem('userId');
   localStorage.removeItem('nickname');
   localStorage.removeItem('profileColor');
+  localStorage.removeItem('role');
 }
 
 export async function logout() {

@@ -1,10 +1,11 @@
 import { AlertTriangle, FolderKanban, MessageSquare, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { getAdminDashboardStats, type AdminDashboardStats } from '../../api/adminDashboard';
+import { getAdminRecentChats, type AdminRecentChat } from '../../api/adminChats';
 import { Card } from '../../components/ui/Card';
 import { mockDashboardHistory, mockRecentComments } from '../../data/mock';
 import { useTheme } from '../../context/ThemeContext';
-import { getAdminRecentChats, type AdminRecentChat } from '../../api/adminChats';
 
 function formatRecentTime(value: string) {
   const date = new Date(value);
@@ -16,8 +17,20 @@ function getInitials(nickname: string) {
   return nickname.trim().slice(0, 2).toUpperCase() || '?';
 }
 
+function formatCount(value: number | undefined) {
+  return value == null ? '-' : value.toLocaleString('ko-KR');
+}
+
+function formatTodayLabel() {
+  const today = new Date();
+  return `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 기준`;
+}
+
 export function AdminDashboardPage() {
   const { theme, basePath } = useTheme();
+  const [dashboardStats, setDashboardStats] = useState<AdminDashboardStats | null>(null);
+  const [dashboardStatsLoading, setDashboardStatsLoading] = useState(false);
+  const [dashboardStatsError, setDashboardStatsError] = useState('');
   const [recentChats, setRecentChats] = useState<AdminRecentChat[]>([]);
   const [recentChatsLoading, setRecentChatsLoading] = useState(false);
   const [recentChatsError, setRecentChatsError] = useState('');
@@ -25,12 +38,31 @@ export function AdminDashboardPage() {
   useEffect(() => {
     let active = true;
 
+    const loadDashboardStats = async () => {
+      setDashboardStatsLoading(true);
+      setDashboardStatsError('');
+
+      try {
+        const response = await getAdminDashboardStats();
+        if (active) setDashboardStats(response.data);
+      } catch (err) {
+        console.error(err);
+        if (active) {
+          setDashboardStatsError(
+            err instanceof Error ? err.message : '대시보드 통계를 불러오지 못했습니다.',
+          );
+        }
+      } finally {
+        if (active) setDashboardStatsLoading(false);
+      }
+    };
+
     const loadRecentChats = async () => {
       setRecentChatsLoading(true);
       setRecentChatsError('');
 
       try {
-        const response = await getAdminRecentChats(5);
+        const response = await getAdminRecentChats(4);
         if (!active) return;
         setRecentChats(response.data);
       } catch (err) {
@@ -45,6 +77,7 @@ export function AdminDashboardPage() {
       }
     };
 
+    void loadDashboardStats();
     void loadRecentChats();
 
     return () => {
@@ -57,16 +90,20 @@ export function AdminDashboardPage() {
       icon: Users,
       color: 'text-blue-500',
       title: '사용자 현황',
-      main: '접속 32명',
-      sub: '전체 1,234',
+      main: dashboardStatsLoading
+        ? '불러오는 중...'
+        : `접속 ${formatCount(dashboardStats?.activeConnections)}명`,
+      sub: `전체 ${formatCount(dashboardStats?.totalUsers)}명`,
       to: `${basePath}/admin/users`,
     },
     {
       icon: FolderKanban,
       color: 'text-green-500',
       title: '프로젝트 현황',
-      main: '+신규 2개',
-      sub: '전체 100',
+      main: dashboardStatsLoading
+        ? '불러오는 중...'
+        : `전체 ${formatCount(dashboardStats?.totalProjects)}개`,
+      sub: '신규 프로젝트 수는 추후 집계 예정',
       to: `${basePath}/admin/projects`,
     },
     {
@@ -91,7 +128,7 @@ export function AdminDashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className={`text-2xl font-bold ${theme.text}`}>관리자 대시보드</h1>
-        <p className={`text-sm ${theme.textMuted}`}>2026년 5월 13일 기준</p>
+        <p className={`text-sm ${theme.textMuted}`}>{formatTodayLabel()}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -110,6 +147,7 @@ export function AdminDashboardPage() {
           </Link>
         ))}
       </div>
+      {dashboardStatsError && <p className="text-sm text-red-500">{dashboardStatsError}</p>}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
