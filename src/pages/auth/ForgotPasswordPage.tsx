@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { useTheme } from '../../context/ThemeContext';
 import { figma } from '../../styles/figma-spec';
@@ -7,7 +7,6 @@ import { apiFetch } from '../../api/client';
 
 export function ForgotPasswordPage() {
   const { theme, basePath, style } = useTheme();
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
