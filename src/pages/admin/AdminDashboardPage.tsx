@@ -1,4 +1,4 @@
-import { AlertTriangle, FolderKanban, MessageSquare, Users } from 'lucide-react';
+import { FolderKanban, MessageSquare, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
@@ -30,7 +30,7 @@ export function AdminDashboardPage() {
       setRecentChatsError('');
 
       try {
-        const response = await getAdminRecentChats(5);
+        const response = await getAdminRecentChats(4);
         if (!active) return;
         setRecentChats(response.data);
       } catch (err) {
@@ -69,22 +69,6 @@ export function AdminDashboardPage() {
       sub: '전체 100',
       to: `${basePath}/admin/projects`,
     },
-    {
-      icon: AlertTriangle,
-      color: 'text-red-500',
-      title: '데이터 사용량 위험',
-      main: '2건',
-      sub: '800MB 초과 프로젝트 2건',
-      to: `${basePath}/admin/projects`,
-    },
-    {
-      icon: AlertTriangle,
-      color: 'text-orange-500',
-      title: '보안 이벤트',
-      main: '2건',
-      sub: '로그인 실패 외 1건',
-      to: `${basePath}/admin/security`,
-    },
   ];
 
   return (
@@ -94,7 +78,7 @@ export function AdminDashboardPage() {
         <p className={`text-sm ${theme.textMuted}`}>2026년 5월 13일 기준</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         {stats.map((s) => (
           <Link key={s.title} to={s.to}>
             <Card hover>
