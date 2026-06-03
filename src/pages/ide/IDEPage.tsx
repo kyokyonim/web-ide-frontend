@@ -7,7 +7,7 @@ import { RightPanel } from '../../components/ide/RightPanel';
 import { TopBar } from '../../components/layout/TopBar';
 import { useTheme } from '../../context/ThemeContext';
 import { figma } from '../../styles/figma-spec';
-import { updatePresence } from '../../api/presence';
+import { disconnectPresence, updatePresence } from '../../api/presence';
 import {
   createFile,
   createFolder,
@@ -90,9 +90,21 @@ export function IDEPage() {
   useEffect(() => {
     if (!projectId) return;
 
+    const disconnect = (keepalive = false) => {
+      disconnectPresence(projectId, keepalive).catch((err) => {
+        console.error('Presence disconnect failed:', err);
+      });
+    };
+
+    const handlePageHide = () => {
+      disconnect(true);
+    };
+
     updatePresence(projectId).catch((err) => {
       console.error('Presence update failed:', err);
     });
+
+    window.addEventListener('pagehide', handlePageHide);
 
     const timer = window.setInterval(() => {
       updatePresence(projectId).catch((err) => {
@@ -100,7 +112,11 @@ export function IDEPage() {
       });
     }, 30000);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('pagehide', handlePageHide);
+      disconnect();
+    };
   }, [projectId]);
 
   useEffect(() => {
