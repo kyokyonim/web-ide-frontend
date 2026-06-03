@@ -169,9 +169,9 @@ function PasswordField({
           {visible ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
-      <p className={`mt-1 text-xs ${error ? 'text-red-500' : theme.textSubtle}`}>
-        {error || helper}
-      </p>
+<p className={`mt-1 text-xs ${error ? 'text-red-500' : value && !error ? 'text-green-600' : theme.textSubtle}`}>
+  {error || (value && !error ? '사용 가능한 비밀번호입니다.' : helper)}
+</p>
     </div>
   );
 }
