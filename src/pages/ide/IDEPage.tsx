@@ -134,6 +134,49 @@ export function IDEPage() {
     };
   }, [unsaved]);
 
+  const loadSelectedFile = useCallback(
+    async (fileId: string, fileName: string) => {
+      if (!projectId) return;
+
+      setActiveFileId(fileId);
+      setActiveFileName(fileName);
+      setActiveFilePath('');
+      setFileLoading(true);
+      setFileError('');
+
+      try {
+        const response = await getFileDetail(projectId, fileId);
+        const content = response.data.content ?? '';
+
+        setActiveFileName(response.data.name);
+        setActiveFilePath(response.data.path);
+        setFileContent(content);
+        setSavedContent(content);
+        setFileVersion(response.data.version);
+
+        setActiveLockStatus(response.data.lockStatus);
+        setActiveLockedBy(response.data.lockedBy);
+      } catch (err) {
+        console.error(err);
+        setFileError(err instanceof Error ? err.message : '파일을 불러오지 못했습니다.');
+        setActiveLockStatus('UNLOCKED');
+        setActiveLockedBy(null);
+      } finally {
+        setFileLoading(false);
+      }
+    },
+    [projectId],
+  );
+
+  const refreshActiveFile = useCallback(async () => {
+    if (!projectId || !activeFileId) return;
+
+    if (unsaved && activeLockStatus === 'LOCKED_BY_ME') {
+      return;
+    }
+
+    await loadSelectedFile(activeFileId, activeFileName);
+  }, [projectId, activeFileId, activeFileName, unsaved, activeLockStatus, loadSelectedFile]);
   
   useEffect(() => {
     if (!projectId) return;
@@ -190,48 +233,7 @@ export function IDEPage() {
       socket?.disconnect();
       fileLockSocketRef.current = null;
     };
-  }, [projectId, activeFileId, myUserId]);
-
-  const loadSelectedFile = async (fileId: string, fileName: string) => {
-    if (!projectId) return;
-
-    setActiveFileId(fileId);
-    setActiveFileName(fileName);
-    setActiveFilePath('');
-    setFileLoading(true);
-    setFileError('');
-
-    try {
-      const response = await getFileDetail(projectId, fileId);
-      const content = response.data.content ?? '';
-
-      setActiveFileName(response.data.name);
-      setActiveFilePath(response.data.path);
-      setFileContent(content);
-      setSavedContent(content);
-      setFileVersion(response.data.version);
-
-      setActiveLockStatus(response.data.lockStatus);
-      setActiveLockedBy(response.data.lockedBy);
-    } catch (err) {
-      console.error(err);
-      setFileError(err instanceof Error ? err.message : '파일을 불러오지 못했습니다.');
-      setActiveLockStatus('UNLOCKED');
-      setActiveLockedBy(null);
-    } finally {
-      setFileLoading(false);
-    }
-  };
-
-  const refreshActiveFile = async () => {
-    if (!projectId || !activeFileId) return;
-
-    if (unsaved) {
-      return;
-    }
-
-    await loadSelectedFile(activeFileId, activeFileName);
-  };
+  }, [projectId, activeFileId, myUserId, refreshActiveFile]);
 
   const confirmDiscardUnsavedAndUnlock = async () => {
     if (!projectId || !activeFileId || !unsaved) {
@@ -533,19 +535,32 @@ export function IDEPage() {
   const handleChangeFileContent = async (value: string) => {
     if (!projectId || !activeFileId) return;
 
+    if (activeLockStatus === 'LOCKED_BY_OTHER' || activeLockStatus === 'VIEWER_MODE') {
+      return;
+    }
+
+    if (activeLockStatus === 'LOCKED_BY_ME') {
+      setFileContent(value);
+      return;
+    }
+
     if (activeLockStatus === 'UNLOCKED') {
       try {
         const response = await lockFile(projectId, activeFileId);
+
         setActiveLockStatus(response.data.lockStatus);
         setActiveLockedBy(response.data.lockedBy);
+
+        if (response.data.lockStatus !== 'LOCKED_BY_ME') {
+          return;
+        }
+
+        setFileContent(value);
       } catch (err) {
         console.error(err);
         setFileError(err instanceof Error ? err.message : '파일 잠금에 실패했습니다.');
-        return;
       }
     }
-
-    setFileContent(value);
   };
 
   const handleToggleTheme = () => {
@@ -559,20 +574,20 @@ export function IDEPage() {
   };
 
   const handleRefresh = async () => {
-  await loadFileTree();
+    await loadFileTree();
 
-  if (!projectId || !activeFileId) return;
+    if (!projectId || !activeFileId) return;
 
-  if (unsaved) {
-    const ok = window.confirm(
-      '저장하지 않은 변경사항이 있습니다.\n새로고침하면 현재 변경사항이 사라집니다.\n계속하시겠습니까?'
-    );
+    if (unsaved) {
+      const ok = window.confirm(
+        '저장하지 않은 변경사항이 있습니다.\n새로고침하면 현재 변경사항이 사라집니다.\n계속하시겠습니까?'
+      );
 
-    if (!ok) return;
-  }
+      if (!ok) return;
+    }
 
-  await loadSelectedFile(activeFileId, activeFileName);
-};
+    await loadSelectedFile(activeFileId, activeFileName);
+  };
 
   const editorReadOnly =
     !activeFileId ||
