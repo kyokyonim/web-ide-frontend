@@ -1,14 +1,51 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getAdminProjects, type AdminProject } from '../../api/adminProjects';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
-import { mockProjects, mockProjectHistory, mockMembers } from '../../data/mock';
+import { mockProjectHistory, mockMembers } from '../../data/mock';
 import { useTheme } from '../../context/ThemeContext';
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value || '-';
+  return date.toLocaleString('ko-KR');
+}
 
 export function AdminProjectsPage() {
   const { theme } = useTheme();
   const [detailOpen, setDetailOpen] = useState(false);
+  const [projects, setProjects] = useState<AdminProject[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+
+    const loadProjects = async () => {
+      setLoading(true);
+      setError('');
+
+      try {
+        const response = await getAdminProjects();
+        if (active) setProjects(response.data);
+      } catch (err) {
+        console.error(err);
+        if (active) {
+          setError(err instanceof Error ? err.message : '프로젝트 목록을 불러오지 못했습니다.');
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void loadProjects();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -29,12 +66,33 @@ export function AdminProjectsPage() {
             </tr>
           </thead>
           <tbody>
-            {mockProjects.slice(0, 6).map((p) => (
+            {loading && (
+              <tr>
+                <td colSpan={5} className={`p-8 text-center ${theme.textMuted}`}>
+                  프로젝트 목록을 불러오는 중...
+                </td>
+              </tr>
+            )}
+            {!loading && error && (
+              <tr>
+                <td colSpan={5} className="p-8 text-center text-red-500">
+                  {error}
+                </td>
+              </tr>
+            )}
+            {!loading && !error && projects.length === 0 && (
+              <tr>
+                <td colSpan={5} className={`p-8 text-center ${theme.textMuted}`}>
+                  등록된 프로젝트가 없습니다.
+                </td>
+              </tr>
+            )}
+            {!loading && !error && projects.map((p) => (
               <tr key={p.id} className={`border-b ${theme.border}`}>
-                <td className={`p-4 font-medium ${theme.text}`}>{p.name}</td>
-                <td className={`p-4 ${theme.textMuted}`}>{p.participants}명</td>
-                <td className={`p-4 ${theme.textMuted}`}>{p.languages.join(', ')}</td>
-                <td className={`p-4 ${theme.textMuted}`}>{p.lastModified}</td>
+                <td className={`p-4 font-medium ${theme.text}`}>{p.projectName}</td>
+                <td className={`p-4 ${theme.textMuted}`}>{p.memberCount}명</td>
+                <td className={`p-4 ${theme.textMuted}`}>{p.language}</td>
+                <td className={`p-4 ${theme.textMuted}`}>{formatDateTime(p.updatedAt)}</td>
                 <td className="p-4">
                   <Button size="sm" variant="secondary" onClick={() => setDetailOpen(true)}>
                     상세 보기
