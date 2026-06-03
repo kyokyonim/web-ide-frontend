@@ -41,7 +41,7 @@ export function CodeEditor({
           </Button>
         )}
       </div>
-      {readOnly && readOnlyBanner && (
+      {readOnlyBanner && (
         <div
           className={`flex h-9 items-center justify-between border-b px-4 ${figma.typography.caption} ${theme.warningBg} ${theme.border}`}
         >

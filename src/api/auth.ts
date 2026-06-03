@@ -32,3 +32,32 @@ export async function login(email: string, password: string) {
 
   return response.data;
 }
+
+export async function resetPassword(token: string, newPassword: string) {
+  return apiFetch('/api/auth/reset-password', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({
+      token,
+      newPassword,
+    }),
+  });
+}
+
+export function clearAuthStorage() {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('userId');
+  localStorage.removeItem('nickname');
+  localStorage.removeItem('profileColor');
+}
+
+export async function logout() {
+  try {
+    await apiFetch('/api/auth/logout', {
+      method: 'POST',
+    });
+  } finally {
+    clearAuthStorage();
+  }
+}
