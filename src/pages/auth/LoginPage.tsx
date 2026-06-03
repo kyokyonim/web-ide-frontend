@@ -22,8 +22,8 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate(`${basePath}/projects`);
+      const user = await login(email, password);
+      navigate(user.role === 'ADMIN' ? `${basePath}/admin` : `${basePath}/projects`);
     } catch (err) {
       console.error(err);
       setError('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
