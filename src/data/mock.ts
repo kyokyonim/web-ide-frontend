@@ -35,37 +35,59 @@ export const mockFileTree: FileNode[] = [
     id: 'root',
     name: 'Web IDE Steam',
     type: 'folder',
+    parentId: null,
+    path: '/',
     children: [
       {
         id: 'src',
         name: 'src',
         type: 'folder',
+        parentId: 'root',
+        path: '/src',
         children: [
           {
             id: 'main',
             name: 'main',
             type: 'folder',
+            parentId: 'src',
+            path: '/src/main',
             children: [
               {
                 id: 'java',
                 name: 'java',
                 type: 'folder',
+                parentId: 'main',
+                path: '/src/main/java',
                 children: [
                   {
                     id: 'com',
                     name: 'com',
                     type: 'folder',
+                    parentId: 'java',
+                    path: '/src/main/java/com',
                     children: [
                       {
                         id: 'example',
                         name: 'example',
                         type: 'folder',
+                        parentId: 'com',
+                        path: '/src/main/java/com/example',
                         children: [
                           {
                             id: 'app',
                             name: 'app',
                             type: 'folder',
-                            children: [{ id: 'main-java', name: 'Main.java', type: 'file' }],
+                            parentId: 'example',
+                            path: '/src/main/java/com/example/app',
+                            children: [
+                              {
+                                id: 'main-java',
+                                name: 'Main.java',
+                                type: 'file',
+                                parentId: 'app',
+                                path: '/src/main/java/com/example/app/Main.java',
+                              },
+                            ],
                           },
                         ],
                       },
@@ -75,14 +97,30 @@ export const mockFileTree: FileNode[] = [
               },
             ],
           },
-          { id: 'web-ide-py', name: 'web_ide.py', type: 'file' },
+          {
+            id: 'web-ide-py',
+            name: 'web_ide.py',
+            type: 'file',
+            parentId: 'src',
+            path: '/src/web_ide.py',
+          },
         ],
       },
       {
         id: 'resources',
         name: 'resources',
         type: 'folder',
-        children: [{ id: 'yml', name: 'application.yml', type: 'file' }],
+        parentId: 'root',
+        path: '/resources',
+        children: [
+          {
+            id: 'yml',
+            name: 'application.yml',
+            type: 'file',
+            parentId: 'resources',
+            path: '/resources/application.yml',
+          },
+        ],
       },
     ],
   },

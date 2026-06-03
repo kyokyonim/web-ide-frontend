@@ -10,6 +10,8 @@ function mapNode(node: BackendFileTreeNode): FileNode {
     id: String(node.id),
     name: node.name,
     type: node.type === 'FOLDER' ? 'folder' : 'file',
+    parentId: node.parentId == null ? null : String(node.parentId),
+    path: node.path,
     children: node.children?.length ? node.children.map(mapNode) : undefined,
   };
 }

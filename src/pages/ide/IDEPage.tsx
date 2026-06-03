@@ -11,10 +11,15 @@ import { disconnectPresence, updatePresence } from '../../api/presence';
 import {
   createFile,
   createFolder,
+  deleteFile,
   getFileDetail,
   getFileTree,
   lockFile,
+  renameFile,
+  unlockFile,
   updateFileContent,
+  validateFileName,
+  type BackendFileType,
   type BackendLockStatus,
   type BackendLockUser,
 } from '../../api/files';
@@ -33,6 +38,7 @@ export function IDEPage() {
 
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [activeFileName, setActiveFileName] = useState('');
+  const [activeFilePath, setActiveFilePath] = useState('');
   const [fileContent, setFileContent] = useState('');
   const [fileVersion, setFileVersion] = useState<number | null>(null);
   const [savedContent, setSavedContent] = useState('');
@@ -128,6 +134,50 @@ export function IDEPage() {
     };
   }, [unsaved]);
 
+  const loadSelectedFile = useCallback(
+    async (fileId: string, fileName: string) => {
+      if (!projectId) return;
+
+      setActiveFileId(fileId);
+      setActiveFileName(fileName);
+      setActiveFilePath('');
+      setFileLoading(true);
+      setFileError('');
+
+      try {
+        const response = await getFileDetail(projectId, fileId);
+        const content = response.data.content ?? '';
+
+        setActiveFileName(response.data.name);
+        setActiveFilePath(response.data.path);
+        setFileContent(content);
+        setSavedContent(content);
+        setFileVersion(response.data.version);
+
+        setActiveLockStatus(response.data.lockStatus);
+        setActiveLockedBy(response.data.lockedBy);
+      } catch (err) {
+        console.error(err);
+        setFileError(err instanceof Error ? err.message : '파일을 불러오지 못했습니다.');
+        setActiveLockStatus('UNLOCKED');
+        setActiveLockedBy(null);
+      } finally {
+        setFileLoading(false);
+      }
+    },
+    [projectId],
+  );
+
+  const refreshActiveFile = useCallback(async () => {
+    if (!projectId || !activeFileId) return;
+
+    if (unsaved && activeLockStatus === 'LOCKED_BY_ME') {
+      return;
+    }
+
+    await loadSelectedFile(activeFileId, activeFileName);
+  }, [projectId, activeFileId, activeFileName, unsaved, activeLockStatus, loadSelectedFile]);
+  
   useEffect(() => {
     if (!projectId) return;
 
@@ -149,6 +199,7 @@ export function IDEPage() {
             if (event.type === 'UNLOCKED') {
               setActiveLockStatus('UNLOCKED');
               setActiveLockedBy(null);
+              void refreshActiveFile();
               return;
             }
 
@@ -182,34 +233,40 @@ export function IDEPage() {
       socket?.disconnect();
       fileLockSocketRef.current = null;
     };
-  }, [projectId, activeFileId, myUserId]);
+  }, [projectId, activeFileId, myUserId, refreshActiveFile]);
 
-  const handleSelectFile = async (fileId: string, fileName: string) => {
-    if (!projectId) return;
+  const confirmDiscardUnsavedAndUnlock = async () => {
+    if (!projectId || !activeFileId || !unsaved) {
+      return true;
+    }
 
-    setActiveFileId(fileId);
-    setActiveFileName(fileName);
-    setFileLoading(true);
-    setFileError('');
+    const ok = window.confirm(
+      '저장하지 않은 변경사항이 있습니다.\n저장하지 않고 진행하면 현재 변경사항이 사라집니다.\n계속하시겠습니까?'
+    );
+
+    if (!ok) return false;
 
     try {
-      const response = await getFileDetail(projectId, fileId);
-      const content = response.data.content ?? '';
-
-      setFileContent(content);
-      setSavedContent(content);
-      setFileVersion(response.data.version);
-
-      setActiveLockStatus(response.data.lockStatus);
-      setActiveLockedBy(response.data.lockedBy);
-    } catch (err) {
-      console.error(err);
-      setFileError(err instanceof Error ? err.message : '파일을 불러오지 못했습니다.');
+      await unlockFile(projectId, activeFileId);
       setActiveLockStatus('UNLOCKED');
       setActiveLockedBy(null);
-    } finally {
-      setFileLoading(false);
+      return true;
+    } catch (err) {
+      console.error(err);
+      setFileError(err instanceof Error ? err.message : '파일 잠금 해제에 실패했습니다.');
+      return false;
     }
+  };
+
+  const handleRequestSelectFile = async (fileId: string, fileName: string) => {
+    if (!projectId) return;
+
+    if (activeFileId && activeFileId !== fileId) {
+      const canLeave = await confirmDiscardUnsavedAndUnlock();
+      if (!canLeave) return;
+    }
+
+    await loadSelectedFile(fileId, fileName);
   };
 
   const handleSaveFile = async () => {
@@ -238,20 +295,58 @@ export function IDEPage() {
     }
   };
 
+  const getBackendFileType = (node: FileNode): BackendFileType => {
+    return node.type === 'folder' ? 'FOLDER' : 'FILE';
+  };
+
+  const resetActiveFile = () => {
+    setActiveFileId(null);
+    setActiveFileName('');
+    setActiveFilePath('');
+    setFileContent('');
+    setSavedContent('');
+    setFileVersion(null);
+    setActiveLockStatus('UNLOCKED');
+    setActiveLockedBy(null);
+  };
+
+  const containsNode = (node: FileNode, targetId: string): boolean => {
+    if (node.id === targetId) return true;
+
+    return node.children?.some((child) => containsNode(child, targetId)) ?? false;
+  };
+
   const handleCreateFile = async () => {
     if (!projectId) return;
 
     const name = window.prompt('새 파일 이름', 'main.py');
     if (!name?.trim()) return;
 
+    const trimmedName = name.trim();
+
     try {
+      const validateResponse = await validateFileName(projectId, {
+        parentId: null,
+        excludeId: null,
+        name: trimmedName,
+        type: 'FILE',
+      });
+
+      if (!validateResponse.data.valid) {
+        setTreeError(validateResponse.data.reason ?? '사용할 수 없는 이름입니다.');
+        return;
+      }
+
+      const canLeave = await confirmDiscardUnsavedAndUnlock();
+      if (!canLeave) return;
+
       const response = await createFile(projectId, {
-        name: name.trim(),
+        name: trimmedName,
         content: '',
       });
 
       await loadFileTree();
-      await handleSelectFile(String(response.data.id), name.trim());
+      await loadSelectedFile(String(response.data.id), trimmedName);
     } catch (err) {
       console.error(err);
       setTreeError(err instanceof Error ? err.message : '파일 생성에 실패했습니다.');
@@ -264,9 +359,23 @@ export function IDEPage() {
     const name = window.prompt('새 폴더 이름', 'src');
     if (!name?.trim()) return;
 
+    const trimmedName = name.trim();
+
     try {
+      const validateResponse = await validateFileName(projectId, {
+        parentId: null,
+        excludeId: null,
+        name: trimmedName,
+        type: 'FOLDER',
+      });
+
+      if (!validateResponse.data.valid) {
+        setTreeError(validateResponse.data.reason ?? '사용할 수 없는 이름입니다.');
+        return;
+      }
+
       await createFolder(projectId, {
-        name: name.trim(),
+        name: trimmedName,
       });
 
       await loadFileTree();
@@ -276,22 +385,182 @@ export function IDEPage() {
     }
   };
 
+  const handleCreateFileInFolder = async (folder: FileNode) => {
+    if (!projectId || folder.type !== 'folder') return;
+
+    const name = window.prompt(`${folder.name} 폴더에 만들 새 파일 이름`, 'main.py');
+    if (!name?.trim()) return;
+
+    const trimmedName = name.trim();
+    const parentId = Number(folder.id);
+
+    setTreeError('');
+
+    try {
+      const validateResponse = await validateFileName(projectId, {
+        parentId,
+        excludeId: null,
+        name: trimmedName,
+        type: 'FILE',
+      });
+
+      if (!validateResponse.data.valid) {
+        setTreeError(validateResponse.data.reason ?? '사용할 수 없는 이름입니다.');
+        return;
+      }
+
+      const canLeave = await confirmDiscardUnsavedAndUnlock();
+      if (!canLeave) return;
+
+      const response = await createFile(projectId, {
+        parentId,
+        name: trimmedName,
+        content: '',
+      });
+
+      await loadFileTree();
+      await loadSelectedFile(String(response.data.id), trimmedName);
+    } catch (err) {
+      console.error(err);
+      setTreeError(err instanceof Error ? err.message : '파일 생성에 실패했습니다.');
+    }
+  };
+
+  const handleCreateFolderInFolder = async (folder: FileNode) => {
+    if (!projectId || folder.type !== 'folder') return;
+
+    const name = window.prompt(`${folder.name} 폴더에 만들 새 폴더 이름`, 'src');
+    if (!name?.trim()) return;
+
+    const trimmedName = name.trim();
+    const parentId = Number(folder.id);
+
+    setTreeError('');
+
+    try {
+      const validateResponse = await validateFileName(projectId, {
+        parentId,
+        excludeId: null,
+        name: trimmedName,
+        type: 'FOLDER',
+      });
+
+      if (!validateResponse.data.valid) {
+        setTreeError(validateResponse.data.reason ?? '사용할 수 없는 이름입니다.');
+        return;
+      }
+
+      await createFolder(projectId, {
+        parentId,
+        name: trimmedName,
+      });
+
+      await loadFileTree();
+    } catch (err) {
+      console.error(err);
+      setTreeError(err instanceof Error ? err.message : '폴더 생성에 실패했습니다.');
+    }
+  };
+
+  const handleRenameNode = async (node: FileNode) => {
+    if (!projectId) return;
+
+    const nextName = window.prompt('새 이름을 입력하세요.', node.name);
+    if (!nextName?.trim()) return;
+
+    const trimmedName = nextName.trim();
+
+    if (trimmedName === node.name) return;
+
+    setTreeError('');
+
+    try {
+      const validateResponse = await validateFileName(projectId, {
+        parentId: node.parentId == null ? null : Number(node.parentId),
+        excludeId: Number(node.id),
+        name: trimmedName,
+        type: getBackendFileType(node),
+      });
+
+      if (!validateResponse.data.valid) {
+        setTreeError(validateResponse.data.reason ?? '사용할 수 없는 이름입니다.');
+        return;
+      }
+
+      const response = await renameFile(projectId, node.id, {
+        name: trimmedName,
+      });
+
+      await loadFileTree();
+
+      if (activeFileId === node.id) {
+        setActiveFileName(response.data.name);
+        setActiveFilePath(response.data.path);
+        return;
+      }
+
+      if (node.type === 'folder' && activeFileId && containsNode(node, activeFileId)) {
+        const detailResponse = await getFileDetail(projectId, activeFileId);
+
+        setActiveFileName(detailResponse.data.name);
+        setActiveFilePath(detailResponse.data.path);
+      }
+    } catch (err) {
+      console.error(err);
+      setTreeError(err instanceof Error ? err.message : '이름 변경에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteNode = async (node: FileNode) => {
+    if (!projectId) return;
+
+    const ok = window.confirm(`${node.name}을(를) 삭제하시겠습니까?`);
+    if (!ok) return;
+
+    setTreeError('');
+
+    try {
+      await deleteFile(projectId, node.id);
+      await loadFileTree();
+
+      if (activeFileId && containsNode(node, activeFileId)) {
+        resetActiveFile();
+      }
+    } catch (err) {
+      console.error(err);
+      setTreeError(err instanceof Error ? err.message : '삭제에 실패했습니다.');
+    }
+  };
+
   const handleChangeFileContent = async (value: string) => {
     if (!projectId || !activeFileId) return;
+
+    if (activeLockStatus === 'LOCKED_BY_OTHER' || activeLockStatus === 'VIEWER_MODE') {
+      return;
+    }
+
+    if (activeLockStatus === 'LOCKED_BY_ME') {
+      setFileContent(value);
+      return;
+    }
 
     if (activeLockStatus === 'UNLOCKED') {
       try {
         const response = await lockFile(projectId, activeFileId);
+
         setActiveLockStatus(response.data.lockStatus);
         setActiveLockedBy(response.data.lockedBy);
+
+        if (response.data.lockStatus !== 'LOCKED_BY_ME') {
+          return;
+        }
+
+        setFileContent(value);
       } catch (err) {
         console.error(err);
         setFileError(err instanceof Error ? err.message : '파일 잠금에 실패했습니다.');
-        return;
       }
     }
-
-    setFileContent(value);
   };
 
   const handleToggleTheme = () => {
@@ -302,6 +571,22 @@ export function IDEPage() {
     } else {
       navigate(`/design/${nextStyle}/ide`);
     }
+  };
+
+  const handleRefresh = async () => {
+    await loadFileTree();
+
+    if (!projectId || !activeFileId) return;
+
+    if (unsaved) {
+      const ok = window.confirm(
+        '저장하지 않은 변경사항이 있습니다.\n새로고침하면 현재 변경사항이 사라집니다.\n계속하시겠습니까?'
+      );
+
+      if (!ok) return;
+    }
+
+    await loadSelectedFile(activeFileId, activeFileName);
   };
 
   const editorReadOnly =
@@ -367,16 +652,20 @@ export function IDEPage() {
             tree={fileTree}
             activeFileId={activeFileId}
             loading={treeLoading}
-            onSelectFile={(id, name) => void handleSelectFile(id, name)}
-            onRefresh={() => void loadFileTree()}
+            onSelectFile={(id, name) => void handleRequestSelectFile(id, name)}
+            onRefresh={() => void handleRefresh()}
             onCreateFile={() => void handleCreateFile()}
             onCreateFolder={() => void handleCreateFolder()}
-          />
+            onRenameNode={(node) => void handleRenameNode(node)}
+            onDeleteNode={(node) => void handleDeleteNode(node)}
+            onCreateFileInFolder={(folder) => void handleCreateFileInFolder(folder)}
+            onCreateFolderInFolder={(folder) => void handleCreateFolderInFolder(folder)}
+            />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
           <CodeEditor
-            filename={activeFileName}
+            filename={activeFilePath || activeFileName}
             code={fileLoading ? '불러오는 중…' : fileContent}
             unsaved={unsaved}
             readOnly={editorReadOnly}

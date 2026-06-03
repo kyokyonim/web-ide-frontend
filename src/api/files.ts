@@ -212,3 +212,12 @@ export async function lockFile(projectId: string, fileId: string) {
     },
   );
 }
+
+export async function unlockFile(projectId: string, fileId: string) {
+  return apiFetch<ApiResponse<null>>(
+    `/api/projects/${projectId}/files/${fileId}/lock`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
