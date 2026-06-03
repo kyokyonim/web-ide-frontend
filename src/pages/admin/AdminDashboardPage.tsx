@@ -21,6 +21,11 @@ function formatCount(value: number | undefined) {
   return value == null ? '-' : value.toLocaleString('ko-KR');
 }
 
+function formatTodayLabel() {
+  const today = new Date();
+  return `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 기준`;
+}
+
 export function AdminDashboardPage() {
   const { theme, basePath } = useTheme();
   const [dashboardStats, setDashboardStats] = useState<AdminDashboardStats | null>(null);
@@ -123,7 +128,7 @@ export function AdminDashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className={`text-2xl font-bold ${theme.text}`}>관리자 대시보드</h1>
-        <p className={`text-sm ${theme.textMuted}`}>2026년 5월 13일 기준</p>
+        <p className={`text-sm ${theme.textMuted}`}>{formatTodayLabel()}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
