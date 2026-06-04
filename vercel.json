@@ -1,8 +1,8 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "http://3.37.128.232/api/$1" },
-    { "source": "/oauth2/(.*)", "destination": "http://3.37.128.232/oauth2/$1" },
-    { "source": "/login/oauth2/(.*)", "destination": "http://3.37.128.232/login/oauth2/$1" },
+    { "source": "/api/(.*)", "destination": "https://3.37.128.232.sslip.io/api/$1" },
+    { "source": "/oauth2/(.*)", "destination": "https://3.37.128.232.sslip.io/oauth2/$1" },
+    { "source": "/login/oauth2/(.*)", "destination": "https://3.37.128.232.sslip.io/login/oauth2/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
