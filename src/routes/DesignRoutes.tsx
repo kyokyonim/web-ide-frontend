@@ -44,7 +44,7 @@ function DesignLayout() {
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 
-          <Route path="ide" element={<IDEPage />} />
+          <Route path="ide" element={<Navigate to="../projects" replace />} />
           <Route path="ide/:projectId" element={<IDEPage />} />
 
           <Route element={<AdminShell />}>
