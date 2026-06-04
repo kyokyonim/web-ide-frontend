@@ -79,6 +79,12 @@ export function signupOnly(payload: SignupPayload) {
   });
 }
 
+
+export function getGoogleLoginUrl() {
+  const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+  return `${configuredApiBaseUrl}/oauth2/authorization/google`;
+}
+
 export async function resetPassword(token: string, newPassword: string) {
   return apiFetch('/api/auth/reset-password', {
     method: 'POST',

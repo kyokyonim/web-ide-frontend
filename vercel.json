@@ -1,6 +1,8 @@
 {
   "rewrites": [
     { "source": "/api/(.*)", "destination": "http://3.37.128.232/api/$1" },
+    { "source": "/oauth2/(.*)", "destination": "http://3.37.128.232/oauth2/$1" },
+    { "source": "/login/oauth2/(.*)", "destination": "http://3.37.128.232/login/oauth2/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

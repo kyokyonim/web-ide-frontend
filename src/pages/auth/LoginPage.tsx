@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
 import { figma } from '../../styles/figma-spec';
-import { login } from '../../api/auth';
+import { getGoogleLoginUrl, login } from '../../api/auth';
 
 export function LoginPage() {
   const { theme, basePath, style } = useTheme();
@@ -42,6 +42,9 @@ export function LoginPage() {
 
       <button
         type="button"
+        onClick={() => {
+          window.location.href = getGoogleLoginUrl();
+        }}
         className={`mt-8 flex ${figma.sizes.inputHeight} w-full items-center justify-center gap-2 border font-medium transition ${theme.border} ${theme.radius} ${theme.text} hover:opacity-90`}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>

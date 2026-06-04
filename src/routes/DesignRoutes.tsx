@@ -15,6 +15,7 @@ import { SecurityManagementPage } from '../pages/admin/SecurityManagementPage';
 import { AdminProjectsPage } from '../pages/admin/AdminProjectsPage';
 import type { DesignStyle } from '../types';
 import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage';
+import { OAuthCallbackPage } from '../pages/auth/OAuthCallbackPage';
 
 function DesignLayout() {
   const { style } = useParams<{ style: string }>();
@@ -33,6 +34,7 @@ function DesignLayout() {
             <Route path="signup" element={<SignupPage />} />
             <Route path="reset-password" element={<ResetPasswordPage />} />
           <Route path="forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="oauth/callback" element={<OAuthCallbackPage />} />
           </Route>
 
           <Route element={<AppShell />}>
