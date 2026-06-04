@@ -1,6 +1,10 @@
-// 백엔드랑 동신할 때 공통으로 쓰는 fetch 함수
-// 백엔드 주소 붙이기 > accessToken Authorization 헤더 붙이기 > JSON 응답 꺼내기 > 예외처리
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+// 백엔드랑 통신할 때 공통으로 쓰는 fetch 함수
+// 로컬은 localhost:8080, 배포는 Vercel rewrite를 통해 같은 origin의 /api로 요청한다.
+const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const API_BASE_URL =
+  import.meta.env.PROD && configuredApiBaseUrl.startsWith('http://')
+    ? ''
+    : configuredApiBaseUrl || (import.meta.env.PROD ? '' : 'http://localhost:8080');
 
 type ApiOptions = RequestInit & {
   auth?: boolean;
