@@ -1,12 +1,17 @@
 import { Client, type IMessage } from '@stomp/stompjs';
 import type { BackendChatMessage } from '../api/chat';
 
+function toWebSocketUrl(value: string) {
+  const normalized = value.trim().replace(/\/$/, '').replace(/^http/, 'ws');
+  return normalized.endsWith('/ws') ? normalized : `${normalized}/ws`;
+}
+
 function getBrokerUrl() {
   const configured = import.meta.env.VITE_WS_BASE_URL as string | undefined;
-  if (configured) return configured;
+  if (configured?.trim()) return toWebSocketUrl(configured);
 
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-  return `${apiBase.replace(/^http/, 'ws')}/ws`;
+  return toWebSocketUrl(apiBase);
 }
 
 export type ChatSocketHandlers = {
