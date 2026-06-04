@@ -73,6 +73,7 @@ type FileTreeProps = {
   onRefresh?: () => void;
   onCreateFile?: () => void;
   onCreateFolder?: () => void;
+  canEdit?: boolean;
 };
 
 export function FileTree({
@@ -83,6 +84,7 @@ export function FileTree({
   onRefresh,
   onCreateFile,
   onCreateFolder,
+  canEdit = true,
 }: FileTreeProps) {
   const { theme } = useTheme();
 
@@ -93,22 +95,26 @@ export function FileTree({
       >
         <span>파일 {loading ? '…' : ''}</span>
         <div className="flex gap-1">
-          <button
-            type="button"
-            className={theme.textMuted}
-            aria-label="새 파일"
-            onClick={onCreateFile}
-          >
-            <FilePlus size={14} />
-          </button>
-          <button
-            type="button"
-            className={theme.textMuted}
-            aria-label="새 폴더"
-            onClick={onCreateFolder}
-          >
-            <FolderPlus size={14} />
-          </button>
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                className={theme.textMuted}
+                aria-label="새 파일"
+                onClick={onCreateFile}
+              >
+                <FilePlus size={14} />
+              </button>
+              <button
+                type="button"
+                className={theme.textMuted}
+                aria-label="새 폴더"
+                onClick={onCreateFolder}
+              >
+                <FolderPlus size={14} />
+              </button>
+            </>
+          )}
           <button
             type="button"
             className={theme.textMuted}
@@ -120,8 +126,11 @@ export function FileTree({
         </div>
       </div>
       <div className="flex-1 overflow-auto py-1">
+        {!canEdit && (
+          <p className={`border-b px-3 py-2 text-xs ${theme.textMuted}`}>VIEWER는 파일을 읽기만 할 수 있습니다.</p>
+        )}
         {tree.length === 0 && !loading && (
-          <p className={`px-3 py-2 text-xs ${theme.textMuted}`}>파일이 없습니다. + 로 추가하세요.</p>
+          <p className={`px-3 py-2 text-xs ${theme.textMuted}`}>파일이 없습니다.{canEdit ? ' + 로 추가하세요.' : ''}</p>
         )}
         {tree.map((node) => (
           <TreeNode

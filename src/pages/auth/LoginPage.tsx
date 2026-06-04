@@ -1,6 +1,6 @@
 import { Eye } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
@@ -10,6 +10,7 @@ import { login } from '../../api/auth';
 export function LoginPage() {
   const { theme, basePath, style } = useTheme();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [email, setEmail] = useState('owner1@test.com');
   const [password, setPassword] = useState('Test1234!');
@@ -23,7 +24,7 @@ export function LoginPage() {
 
     try {
       await login(email, password);
-      navigate(`${basePath}/projects`);
+      navigate(searchParams.get('redirect') || `${basePath}/projects`);
     } catch (err) {
       console.error(err);
       setError('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');

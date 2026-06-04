@@ -67,7 +67,7 @@ export function ProjectSettingsPage() {
   const [projectName, setProjectName] = useState('');
   const [language, setLanguage] = useState<ProjectLanguage>('JAVA');
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<Exclude<ProjectRole, 'OWNER'>>('EDITOR');
+  const [inviteRole, setInviteRole] = useState<Exclude<ProjectRole, 'OWNER'>>('VIEWER');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [inviteSending, setInviteSending] = useState(false);
@@ -189,9 +189,13 @@ export function ProjectSettingsPage() {
     setNotice('');
 
     try {
-      await sendProjectInvite(projectId, email, inviteRole);
+      const response = await sendProjectInvite(projectId, email, inviteRole);
       setInviteEmail('');
-      setNotice('초대 링크를 발송했습니다.');
+      setNotice(
+        response.data.inviteUrl
+          ? `초대 링크를 생성했습니다. 메일 설정이 정상이라면 메일도 발송됩니다: ${response.data.inviteUrl}`
+          : '초대 요청을 보냈습니다.'
+      );
     } catch (err) {
       console.error(err);
       setError('초대 링크 발송에 실패했습니다.');

@@ -1,13 +1,34 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { mockComments, mockParticipants } from '../../data/mock';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../ui/Button';
 import { roleBadgeClass } from '../../themes/tokens';
 import { getChatMessages, type BackendChatMessage } from '../../api/chat';
+import {
+  createFileComment,
+  getFileComments,
+  type BackendComment,
+} from '../../api/comments';
+import { getActivePresence, type PresenceUser } from '../../api/presence';
+import {
+  getProjectMembers,
+  type BackendProjectMember,
+  type ProjectRole,
+} from '../../api/projects';
 import { connectChatSocket } from '../../lib/chatSocket';
 import type { ChatMessage } from '../../types';
 
 type Tab = 'chat' | 'comments' | 'participants';
+type ParticipantStatus = 'online' | 'offline';
+
+type Participant = {
+  id: number;
+  name: string;
+  email: string;
+  role: Lowercase<ProjectRole>;
+  profileColor: string;
+  status: ParticipantStatus;
+  activity: string;
+};
 
 function formatChatTime(iso: string) {
   const date = new Date(iso);
@@ -24,6 +45,20 @@ function formatChatError(body: string) {
   }
 }
 
+function formatRelative(iso?: string) {
+  if (!iso) return '접속 기록 없음';
+
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '접속 기록 없음';
+
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (diffSeconds < 10) return '방금 전 활성';
+  if (diffSeconds < 60) return `${diffSeconds}초 전 활성`;
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}분 전 활성`;
+  return date.toLocaleString('ko-KR');
+}
+
 function toUiMessage(message: BackendChatMessage, myUserId: number | null): ChatMessage {
   return {
     id: String(message.id),
@@ -35,11 +70,32 @@ function toUiMessage(message: BackendChatMessage, myUserId: number | null): Chat
   };
 }
 
+function toParticipant(member: BackendProjectMember, presence?: PresenceUser): Participant {
+  const isOnline = Boolean(presence);
+  return {
+    id: member.memberId,
+    name: member.nickname,
+    email: member.email,
+    role: member.role.toLowerCase() as Lowercase<ProjectRole>,
+    profileColor: member.profileColor,
+    status: isOnline ? 'online' : 'offline',
+    activity: isOnline ? formatRelative(presence?.lastSeenAt) : '오프라인',
+  };
+}
+
+function toCommentTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString('ko-KR');
+}
+
 type RightPanelProps = {
   projectId?: string;
+  activeFileId?: string | null;
+  activeFileName?: string;
 };
 
-export function RightPanel({ projectId }: RightPanelProps) {
+export function RightPanel({ projectId, activeFileId, activeFileName }: RightPanelProps) {
   const { theme, style } = useTheme();
   const [tab, setTab] = useState<Tab>('chat');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -50,6 +106,15 @@ export function RightPanel({ projectId }: RightPanelProps) {
   const [chatConnected, setChatConnected] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [comments, setComments] = useState<BackendComment[]>([]);
+  const [commentInput, setCommentInput] = useState('');
+  const [commentError, setCommentError] = useState('');
+  const [commentLoading, setCommentLoading] = useState(false);
+  const [commentSaving, setCommentSaving] = useState(false);
+  const [members, setMembers] = useState<BackendProjectMember[]>([]);
+  const [activePresence, setActivePresence] = useState<PresenceUser[]>([]);
+  const [participantsError, setParticipantsError] = useState('');
+  const [participantsLoading, setParticipantsLoading] = useState(false);
   const chatSocketRef = useRef<ReturnType<typeof connectChatSocket> | null>(null);
   const myUserId = Number(localStorage.getItem('userId')) || null;
 
@@ -64,6 +129,45 @@ export function RightPanel({ projectId }: RightPanelProps) {
     },
     [myUserId],
   );
+
+  const loadParticipants = useCallback(async () => {
+    if (!projectId) return;
+
+    setParticipantsLoading(true);
+    setParticipantsError('');
+    try {
+      const [memberResponse, presenceResponse] = await Promise.all([
+        getProjectMembers(projectId),
+        getActivePresence(projectId),
+      ]);
+      setMembers(memberResponse.data);
+      setActivePresence(presenceResponse.data);
+    } catch (err) {
+      console.error(err);
+      setParticipantsError('참여자 정보를 불러오지 못했습니다.');
+    } finally {
+      setParticipantsLoading(false);
+    }
+  }, [projectId]);
+
+  const loadComments = useCallback(async () => {
+    if (!projectId || !activeFileId) {
+      setComments([]);
+      return;
+    }
+
+    setCommentLoading(true);
+    setCommentError('');
+    try {
+      const response = await getFileComments(projectId, activeFileId);
+      setComments(response.data);
+    } catch (err) {
+      console.error(err);
+      setCommentError('댓글을 불러오지 못했습니다.');
+    } finally {
+      setCommentLoading(false);
+    }
+  }, [activeFileId, projectId]);
 
   useEffect(() => {
     if (!projectId || tab !== 'chat') return;
@@ -124,6 +228,36 @@ export function RightPanel({ projectId }: RightPanelProps) {
     };
   }, [projectId, tab, myUserId, appendMessage]);
 
+  useEffect(() => {
+    setCommentInput('');
+    setCommentError('');
+  }, [activeFileId]);
+
+  useEffect(() => {
+    if (tab === 'comments') {
+      void loadComments();
+    }
+  }, [loadComments, tab]);
+
+  useEffect(() => {
+    if (tab !== 'participants') return;
+
+    void loadParticipants();
+    const timer = window.setInterval(() => {
+      void loadParticipants();
+    }, 10000);
+
+    return () => window.clearInterval(timer);
+  }, [loadParticipants, tab]);
+
+  const participants = useMemo(() => {
+    const presenceByUserId = new Map(activePresence.map((presence) => [presence.userId, presence]));
+    return members.map((member) => toParticipant(member, presenceByUserId.get(member.userId)));
+  }, [activePresence, members]);
+
+  const onlineParticipants = participants.filter((p) => p.status === 'online');
+  const offlineParticipants = participants.filter((p) => p.status === 'offline');
+
   const handleLoadOlderMessages = async () => {
     if (!projectId || !nextCursor || olderLoading) return;
 
@@ -162,10 +296,35 @@ export function RightPanel({ projectId }: RightPanelProps) {
     }
   };
 
+  const handleCreateComment = async () => {
+    const trimmed = commentInput.trim();
+    if (!projectId || !trimmed) return;
+    if (!activeFileId) {
+      setCommentError('댓글을 남길 파일을 먼저 선택해주세요.');
+      return;
+    }
+
+    setCommentSaving(true);
+    setCommentError('');
+    try {
+      const response = await createFileComment(projectId, activeFileId, {
+        lineNumber: 1,
+        content: trimmed,
+      });
+      setComments((prev) => [response.data, ...prev]);
+      setCommentInput('');
+    } catch (err) {
+      console.error(err);
+      setCommentError(err instanceof Error ? err.message : '댓글 작성에 실패했습니다.');
+    } finally {
+      setCommentSaving(false);
+    }
+  };
+
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: 'chat', label: '채팅', count: chatMessages.length },
-    { id: 'comments', label: '댓글', count: mockComments.length },
-    { id: 'participants', label: '참여자', count: mockParticipants.length },
+    { id: 'comments', label: '댓글', count: comments.length },
+    { id: 'participants', label: '참여자', count: participants.length },
   ];
 
   return (
@@ -249,57 +408,89 @@ export function RightPanel({ projectId }: RightPanelProps) {
 
       {tab === 'comments' && (
         <>
-          <div className={`flex gap-2 border-b p-2 text-xs ${theme.border}`}>
-            {['전체', '해결됨', '내 댓글'].map((f, i) => (
-              <button
-                key={f}
-                className={`rounded px-2 py-1 ${i === 0 ? theme.primary : theme.textMuted}`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
+          {commentError && <p className="border-b px-3 py-2 text-xs text-red-500">{commentError}</p>}
           <div className="flex-1 space-y-2 overflow-auto p-3">
-            {mockComments.map((c) => (
-              <button
-                key={c.id}
-                className={`w-full rounded border p-3 text-left text-xs transition ${theme.border} ${theme.cardHover}`}
+            {!activeFileId && (
+              <p className={`text-xs ${theme.textMuted}`}>파일을 선택하면 댓글을 확인할 수 있습니다.</p>
+            )}
+            {activeFileId && commentLoading && (
+              <p className={`text-xs ${theme.textMuted}`}>댓글 불러오는 중…</p>
+            )}
+            {activeFileId && !commentLoading && comments.length === 0 && (
+              <p className={`text-xs ${theme.textMuted}`}>아직 댓글이 없습니다.</p>
+            )}
+            {comments.map((comment) => (
+              <div
+                key={comment.commentId}
+                className={`w-full rounded border p-3 text-left text-xs ${theme.border}`}
               >
                 <div className={`font-medium ${theme.textSubtle}`}>
-                  {c.file}: {c.line}
+                  {activeFileName || `파일 #${comment.fileId}`}
+                  {comment.lineNumber ? `: ${comment.lineNumber}` : ''}
                 </div>
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-500 text-[10px] text-white">
-                    {c.avatar}
+                  <span
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] text-white"
+                    style={{ backgroundColor: comment.profileColor }}
+                  >
+                    {comment.nickname.slice(0, 2)}
                   </span>
-                  <span className={theme.text}>{c.user}</span>
-                  <span className={theme.textSubtle}>{c.time}</span>
+                  <span className={theme.text}>{comment.nickname}</span>
+                  <span className={theme.textSubtle}>{toCommentTime(comment.createdAt)}</span>
+                  {comment.resolved && (
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">
+                      resolved
+                    </span>
+                  )}
                 </div>
-                <p className={`mt-2 ${theme.textMuted}`}>{c.content}</p>
-                {c.resolved && (
-                  <span className={`mt-2 inline-block text-[10px] ${theme.success}`}>✓ 해결됨</span>
-                )}
-              </button>
+                <p className={`mt-2 ${theme.textMuted}`}>{comment.content}</p>
+              </div>
             ))}
+          </div>
+          <div className={`border-t p-3 ${theme.border}`}>
+            <textarea
+              placeholder={activeFileId ? '댓글 입력...' : '파일을 먼저 선택하세요'}
+              className={`mb-2 w-full resize-none border px-3 py-2 text-xs outline-none ${theme.input}`}
+              rows={2}
+              value={commentInput}
+              onChange={(e) => setCommentInput(e.target.value)}
+              disabled={!activeFileId}
+            />
+            <Button
+              size="sm"
+              className="w-full"
+              onClick={() => void handleCreateComment()}
+              disabled={commentSaving || !activeFileId || !commentInput.trim()}
+            >
+              {commentSaving ? '작성 중…' : '댓글 추가'}
+            </Button>
           </div>
         </>
       )}
 
       {tab === 'participants' && (
         <div className="flex-1 overflow-auto p-3">
-          <Section title="접속 중" count={2} theme={theme}>
-            {mockParticipants
-              .filter((p) => p.status === 'online')
-              .map((p) => (
+          {participantsError && <p className="mb-3 text-xs text-red-500">{participantsError}</p>}
+          {participantsLoading && participants.length === 0 && (
+            <p className={`mb-3 text-xs ${theme.textMuted}`}>참여자 불러오는 중…</p>
+          )}
+          <Section title="접속 중" count={onlineParticipants.length} theme={theme}>
+            {onlineParticipants.length === 0 ? (
+              <p className={`text-xs ${theme.textMuted}`}>현재 활성 사용자가 없습니다.</p>
+            ) : (
+              onlineParticipants.map((p) => (
                 <ParticipantRow key={p.id} participant={p} style={style} theme={theme} />
-              ))}
+              ))
+            )}
           </Section>
-          <Section title="오프라인" count={3} theme={theme}>
-            {mockParticipants
-              .filter((p) => p.status === 'offline')
-              .map((p) => (
+          <Section title="오프라인" count={offlineParticipants.length} theme={theme}>
+            {offlineParticipants.length === 0 ? (
+              <p className={`text-xs ${theme.textMuted}`}>오프라인 참여자가 없습니다.</p>
+            ) : (
+              offlineParticipants.map((p) => (
                 <ParticipantRow key={p.id} participant={p} style={style} theme={theme} />
-              ))}
+              ))
+            )}
           </Section>
         </div>
       )}
@@ -315,7 +506,7 @@ function Section({
 }: {
   title: string;
   count: number;
-  children: React.ReactNode;
+  children: ReactNode;
   theme: ReturnType<typeof useTheme>['theme'];
 }) {
   return (
@@ -333,15 +524,18 @@ function ParticipantRow({
   style,
   theme,
 }: {
-  participant: (typeof mockParticipants)[0];
+  participant: Participant;
   style: ReturnType<typeof useTheme>['style'];
   theme: ReturnType<typeof useTheme>['theme'];
 }) {
   return (
     <div className={`flex items-center gap-2 rounded border p-2 ${theme.border}`}>
       <div className="relative">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-[10px] text-white">
-          {p.avatar}
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-full text-[10px] text-white"
+          style={{ backgroundColor: p.profileColor }}
+        >
+          {p.name.slice(0, 2)}
         </div>
         {p.status === 'online' && (
           <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-500" />

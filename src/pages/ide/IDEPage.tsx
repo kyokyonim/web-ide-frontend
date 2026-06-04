@@ -8,6 +8,7 @@ import { TopBar } from '../../components/layout/TopBar';
 import { useTheme } from '../../context/ThemeContext';
 import { figma } from '../../styles/figma-spec';
 import { disconnectPresence, updatePresence } from '../../api/presence';
+import { getProjectMembers, type ProjectRole } from '../../api/projects';
 import {
   createFile,
   createFolder,
@@ -39,6 +40,7 @@ export function IDEPage() {
   const [fileLoading, setFileLoading] = useState(false);
   const [fileSaving, setFileSaving] = useState(false);
   const [fileError, setFileError] = useState('');
+  const [myRole, setMyRole] = useState<ProjectRole | null>(null);
 
   const [lockError, setLockError] = useState('');
   const fileLockSocketRef = useRef<ReturnType<typeof connectFileLockSocket> | null>(null);
@@ -48,7 +50,10 @@ export function IDEPage() {
   const [activeLockStatus, setActiveLockStatus] = useState<BackendLockStatus>('UNLOCKED');
   const [activeLockedBy, setActiveLockedBy] = useState<BackendLockUser | null>(null);
 
-  const unsaved = fileContent !== savedContent;
+  const canEdit = myRole === 'OWNER' || myRole === 'EDITOR';
+  const isViewer = myRole === 'VIEWER';
+  const rolePending = myRole == null;
+  const unsaved = canEdit && fileContent !== savedContent;
 
   const loadFileTree = useCallback(async () => {
     if (!projectId) return;
@@ -80,6 +85,30 @@ export function IDEPage() {
       cancelled = true;
     };
   }, [loadFileTree]);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    let cancelled = false;
+    const userId = Number(localStorage.getItem('userId')) || null;
+
+    getProjectMembers(projectId)
+      .then((response) => {
+        if (cancelled) return;
+        const currentMember = response.data.find((member) => member.userId === userId);
+        setMyRole(currentMember?.role ?? null);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) {
+          setMyRole(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -213,6 +242,10 @@ export function IDEPage() {
   };
 
   const handleSaveFile = async () => {
+    if (!canEdit) {
+      setFileError('VIEWER는 파일을 저장할 수 없습니다.');
+      return;
+    }
     if (!projectId || !activeFileId || fileVersion == null) return;
 
     setFileSaving(true);
@@ -227,7 +260,6 @@ export function IDEPage() {
       setFileVersion(response.data.version);
       setSavedContent(fileContent);
 
-      // 백엔드에서 저장 성공 후 lock을 자동 해제하므로 프론트 상태도 맞춤
       setActiveLockStatus('UNLOCKED');
       setActiveLockedBy(null);
     } catch (err) {
@@ -239,6 +271,10 @@ export function IDEPage() {
   };
 
   const handleCreateFile = async () => {
+    if (!canEdit) {
+      setTreeError('VIEWER는 파일을 생성할 수 없습니다.');
+      return;
+    }
     if (!projectId) return;
 
     const name = window.prompt('새 파일 이름', 'main.py');
@@ -259,6 +295,10 @@ export function IDEPage() {
   };
 
   const handleCreateFolder = async () => {
+    if (!canEdit) {
+      setTreeError('VIEWER는 폴더를 생성할 수 없습니다.');
+      return;
+    }
     if (!projectId) return;
 
     const name = window.prompt('새 폴더 이름', 'src');
@@ -277,7 +317,21 @@ export function IDEPage() {
   };
 
   const handleChangeFileContent = async (value: string) => {
+    if (!canEdit) {
+      setFileError('VIEWER는 파일을 수정할 수 없습니다.');
+      return;
+    }
     if (!projectId || !activeFileId) return;
+
+    if (activeLockStatus === 'LOCKED_BY_OTHER') {
+      setFileError(`${activeLockedBy?.nickname ?? '다른 사용자'}님이 편집 중입니다.`);
+      return;
+    }
+
+    if (activeLockStatus === 'VIEWER_MODE') {
+      setFileError('VIEWER는 파일을 수정할 수 없습니다.');
+      return;
+    }
 
     if (activeLockStatus === 'UNLOCKED') {
       try {
@@ -307,18 +361,23 @@ export function IDEPage() {
   const editorReadOnly =
     !activeFileId ||
     fileLoading ||
+    !canEdit ||
     activeLockStatus === 'LOCKED_BY_OTHER' ||
     activeLockStatus === 'VIEWER_MODE';
 
   const readOnlyBanner = !activeFileId
     ? '왼쪽에서 파일을 선택하세요.'
-    : activeLockStatus === 'LOCKED_BY_ME'
-      ? '내가 편집 중'
-      : activeLockStatus === 'LOCKED_BY_OTHER'
-        ? `${activeLockedBy?.nickname ?? '다른 사용자'}님이 편집 중입니다.`
-        : activeLockStatus === 'VIEWER_MODE'
-          ? '뷰어 모드'
-          : undefined;
+    : rolePending
+      ? '프로젝트 권한을 확인하는 중입니다.'
+      : isViewer
+        ? 'VIEWER 권한은 파일을 읽기만 할 수 있습니다.'
+        : activeLockStatus === 'LOCKED_BY_ME'
+          ? '내가 편집 중'
+          : activeLockStatus === 'LOCKED_BY_OTHER'
+            ? `${activeLockedBy?.nickname ?? '다른 사용자'}님이 편집 중입니다.`
+            : activeLockStatus === 'VIEWER_MODE'
+              ? '뷰어 모드'
+              : undefined;
 
   return (
     <div className={`flex h-full flex-col ${theme.pageBg}`}>
@@ -371,6 +430,7 @@ export function IDEPage() {
             onRefresh={() => void loadFileTree()}
             onCreateFile={() => void handleCreateFile()}
             onCreateFolder={() => void handleCreateFolder()}
+            canEdit={canEdit}
           />
         </div>
 
@@ -388,7 +448,11 @@ export function IDEPage() {
         </div>
 
         <div className={`${figma.layout.rightPanel} shrink-0`}>
-          <RightPanel projectId={projectId} />
+          <RightPanel
+            projectId={projectId}
+            activeFileId={activeFileId}
+            activeFileName={activeFileName}
+          />
         </div>
       </div>
     </div>

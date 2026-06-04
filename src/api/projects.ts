@@ -20,6 +20,19 @@ export type BackendProject = {
   updatedAt?: string;
 };
 
+
+export type ProjectInviteResponse = {
+  inviteId: number;
+  projectId: number;
+  projectName: string;
+  inviteeEmail: string;
+  role: Exclude<ProjectRole, 'OWNER'>;
+  status: string;
+  inviteUrl: string;
+  expiresAt: string;
+  createdAt: string;
+};
+
 export type BackendProjectMember = {
   memberId: number;
   projectId: number;
@@ -123,7 +136,7 @@ export async function sendProjectInvite(
   email: string,
   role: Exclude<ProjectRole, 'OWNER'>
 ) {
-  return apiFetch<ApiResponse<unknown>>(`/api/projects/${projectId}/invites`, {
+  return apiFetch<ApiResponse<ProjectInviteResponse>>(`/api/projects/${projectId}/invites`, {
     method: 'POST',
     body: JSON.stringify({ email, role }),
   });

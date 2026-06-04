@@ -1,6 +1,6 @@
 import { apiFetch } from './client';
 
-type LoginResponse = {
+type AuthResponse = {
   success: boolean;
   message: string;
   data: {
@@ -12,8 +12,16 @@ type LoginResponse = {
   };
 };
 
+function storeAuthData(data: AuthResponse['data']) {
+  localStorage.setItem('accessToken', data.accessToken);
+  localStorage.setItem('refreshToken', data.refreshToken);
+  localStorage.setItem('userId', String(data.userId));
+  localStorage.setItem('nickname', data.nickname);
+  localStorage.setItem('profileColor', data.profileColor);
+}
+
 export async function login(email: string, password: string) {
-  const response = await apiFetch<LoginResponse>('/api/auth/login', {
+  const response = await apiFetch<AuthResponse>('/api/auth/login', {
     method: 'POST',
     auth: false,
     body: JSON.stringify({
@@ -22,13 +30,25 @@ export async function login(email: string, password: string) {
     }),
   });
 
-  localStorage.setItem('accessToken', response.data.accessToken);
-  localStorage.setItem('refreshToken', response.data.refreshToken);
-  localStorage.setItem('userId', String(response.data.userId));
-  localStorage.setItem('nickname', response.data.nickname);
-  localStorage.setItem('profileColor', response.data.profileColor);
+  storeAuthData(response.data);
 
   return response.data;
+}
+
+export async function signup(email: string, password: string, _nickname?: string) {
+  await apiFetch('/api/auth/signup', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({
+      email,
+      password,
+      agreeService: true,
+      agreeFinance: true,
+      agreePrivacy: true,
+    }),
+  });
+
+  return login(email, password);
 }
 
 export async function resetPassword(token: string, newPassword: string) {

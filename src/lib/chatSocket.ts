@@ -64,6 +64,7 @@ export function connectChatSocket(projectId: string, handlers: ChatSocketHandler
 
       client.publish({
         destination: `/app/projects/${projectId}/chat`,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: JSON.stringify({ content }),
       });
     },
