@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { useTheme } from '../../context/ThemeContext';
-import { signup } from '../../api/auth';
+import { checkEmail, signup } from '../../api/auth';
 
 export function SignupPage() {
   const { theme, basePath } = useTheme();
@@ -14,8 +14,48 @@ export function SignupPage() {
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [agreed, setAgreed] = useState(false);
+  const [emailChecked, setEmailChecked] = useState(false);
+  const [emailMessage, setEmailMessage] = useState('');
+  const [emailChecking, setEmailChecking] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    setEmailChecked(false);
+    setEmailMessage('');
+  };
+
+  const handleCheckEmail = async () => {
+    const trimmedEmail = email.trim();
+    setError('');
+
+    if (!trimmedEmail) {
+      setEmailChecked(false);
+      setEmailMessage('이메일을 먼저 입력해주세요.');
+      return;
+    }
+
+    setEmailChecking(true);
+    try {
+      const response = await checkEmail(trimmedEmail);
+      if (response.data.available) {
+        setEmailChecked(true);
+        setEmailMessage('사용 가능한 이메일입니다.');
+      } else {
+        setEmailChecked(false);
+        setEmailMessage('이미 사용 중인 이메일입니다.');
+      }
+    } catch (err) {
+      console.error(err);
+      setEmailChecked(false);
+      setEmailMessage(
+        err instanceof Error ? err.message : '이메일 중복검사에 실패했습니다.',
+      );
+    } finally {
+      setEmailChecking(false);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -23,6 +63,11 @@ export function SignupPage() {
 
     if (!email.trim() || !password) {
       setError('이메일과 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    if (!emailChecked) {
+      setError('이메일 중복검사를 해주세요.');
       return;
     }
 
@@ -56,13 +101,34 @@ export function SignupPage() {
       </p>
 
       <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-        <Input
-          label="이메일"
-          type="email"
-          placeholder="초대받은 이메일"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-        />
+        <div>
+          <div className="flex items-end gap-2">
+            <Input
+              label="이메일"
+              type="email"
+              placeholder="초대받은 이메일"
+              className="flex-1"
+              value={email}
+              onChange={(event) => handleEmailChange(event.target.value)}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-10 shrink-0"
+              onClick={() => void handleCheckEmail()}
+              disabled={emailChecking || loading || !email.trim()}
+            >
+              {emailChecking ? '확인 중...' : '중복검사'}
+            </Button>
+          </div>
+          {emailMessage && (
+            <p className={`mt-1 text-xs ${emailChecked ? 'text-green-600' : 'text-red-500'}`}>
+              {emailMessage}
+            </p>
+          )}
+        </div>
+
         <Input
           label="닉네임"
           placeholder="화면에 표시될 이름"
@@ -72,7 +138,7 @@ export function SignupPage() {
         <Input
           label="비밀번호"
           type="password"
-          placeholder="8자 이상 권장"
+          placeholder="영어, 숫자, 특수문자 포함 8~32자"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
@@ -96,7 +162,7 @@ export function SignupPage() {
 
         {error && <p className="text-sm text-red-500">{error}</p>}
 
-        <Button className="w-full" disabled={loading}>
+        <Button className="w-full" disabled={loading || emailChecking}>
           {loading ? '가입 중...' : '회원가입'}
         </Button>
       </form>

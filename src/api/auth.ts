@@ -12,6 +12,22 @@ type AuthResponse = {
   };
 };
 
+type CheckEmailResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    available: boolean;
+  };
+};
+
+type SignupPayload = {
+  email: string;
+  password: string;
+  agreeService: boolean;
+  agreeFinance: boolean;
+  agreePrivacy: boolean;
+};
+
 function storeAuthData(data: AuthResponse['data']) {
   localStorage.setItem('accessToken', data.accessToken);
   localStorage.setItem('refreshToken', data.refreshToken);
@@ -35,20 +51,32 @@ export async function login(email: string, password: string) {
   return response.data;
 }
 
-export async function signup(email: string, password: string, _nickname?: string) {
-  await apiFetch('/api/auth/signup', {
-    method: 'POST',
+export function checkEmail(email: string) {
+  const query = new URLSearchParams({ email });
+  return apiFetch<CheckEmailResponse>(`/api/auth/check-email?${query.toString()}`, {
+    method: 'GET',
     auth: false,
-    body: JSON.stringify({
-      email,
-      password,
-      agreeService: true,
-      agreeFinance: true,
-      agreePrivacy: true,
-    }),
+  });
+}
+
+export async function signup(email: string, password: string, _nickname?: string) {
+  await signupOnly({
+    email,
+    password,
+    agreeService: true,
+    agreeFinance: true,
+    agreePrivacy: true,
   });
 
   return login(email, password);
+}
+
+export function signupOnly(payload: SignupPayload) {
+  return apiFetch('/api/auth/signup', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function resetPassword(token: string, newPassword: string) {
