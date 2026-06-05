@@ -12,9 +12,11 @@ import { getProjectMembers, type ProjectRole } from '../../api/projects';
 import {
   createFile,
   createFolder,
+  deleteFile,
   getFileDetail,
   getFileTree,
   lockFile,
+  renameFile,
   updateFileContent,
   type BackendLockStatus,
   type BackendLockUser,
@@ -22,6 +24,11 @@ import {
 import { connectFileLockSocket } from '../../lib/fileLockSocket';
 import { mapBackendFileTree } from '../../lib/fileTreeMapper';
 import type { FileNode } from '../../types';
+
+function fileNodeContains(node: FileNode, fileId: string): boolean {
+  if (node.id === fileId) return true;
+  return node.children?.some((child) => fileNodeContains(child, fileId)) ?? false;
+}
 
 export function IDEPage() {
   const { theme, basePath, style } = useTheme();
@@ -270,7 +277,7 @@ export function IDEPage() {
     }
   };
 
-  const handleCreateFile = async () => {
+  const handleCreateFile = async (parentId?: string) => {
     if (!canEdit) {
       setTreeError('VIEWER는 파일을 생성할 수 없습니다.');
       return;
@@ -282,6 +289,7 @@ export function IDEPage() {
 
     try {
       const response = await createFile(projectId, {
+        parentId: parentId ? Number(parentId) : null,
         name: name.trim(),
         content: '',
       });
@@ -294,7 +302,7 @@ export function IDEPage() {
     }
   };
 
-  const handleCreateFolder = async () => {
+  const handleCreateFolder = async (parentId?: string) => {
     if (!canEdit) {
       setTreeError('VIEWER는 폴더를 생성할 수 없습니다.');
       return;
@@ -306,6 +314,7 @@ export function IDEPage() {
 
     try {
       await createFolder(projectId, {
+        parentId: parentId ? Number(parentId) : null,
         name: name.trim(),
       });
 
@@ -313,6 +322,68 @@ export function IDEPage() {
     } catch (err) {
       console.error(err);
       setTreeError(err instanceof Error ? err.message : '폴더 생성에 실패했습니다.');
+    }
+  };
+
+  const handleRenameNode = async (node: FileNode) => {
+    if (!canEdit) {
+      setTreeError('VIEWER는 파일 이름을 변경할 수 없습니다.');
+      return;
+    }
+    if (!projectId) return;
+
+    const label = node.type === 'folder' ? '폴더' : '파일';
+    const name = window.prompt(`${label} 이름 변경`, node.name);
+    const nextName = name?.trim();
+
+    if (!nextName || nextName === node.name) return;
+
+    try {
+      setTreeError('');
+      await renameFile(projectId, node.id, { name: nextName });
+      await loadFileTree();
+
+      if (node.id === activeFileId) {
+        setActiveFileName(nextName);
+      }
+    } catch (err) {
+      console.error(err);
+      setTreeError(err instanceof Error ? err.message : `${label} 이름 변경에 실패했습니다.`);
+    }
+  };
+
+  const handleDeleteNode = async (node: FileNode) => {
+    if (!canEdit) {
+      setTreeError('VIEWER는 파일을 삭제할 수 없습니다.');
+      return;
+    }
+    if (!projectId) return;
+
+    const label = node.type === 'folder' ? '폴더' : '파일';
+    const willClearActiveFile = activeFileId ? fileNodeContains(node, activeFileId) : false;
+    const unsavedWarning = willClearActiveFile && unsaved ? '\n저장하지 않은 변경사항도 함께 사라집니다.' : '';
+
+    if (!window.confirm(`${label} "${node.name}"을 삭제하시겠습니까?${unsavedWarning}`)) {
+      return;
+    }
+
+    try {
+      setTreeError('');
+      await deleteFile(projectId, node.id);
+      await loadFileTree();
+
+      if (willClearActiveFile) {
+        setActiveFileId(null);
+        setActiveFileName('');
+        setFileContent('');
+        setSavedContent('');
+        setFileVersion(null);
+        setActiveLockStatus('UNLOCKED');
+        setActiveLockedBy(null);
+      }
+    } catch (err) {
+      console.error(err);
+      setTreeError(err instanceof Error ? err.message : `${label} 삭제에 실패했습니다.`);
     }
   };
 
@@ -430,6 +501,10 @@ export function IDEPage() {
             onRefresh={() => void loadFileTree()}
             onCreateFile={() => void handleCreateFile()}
             onCreateFolder={() => void handleCreateFolder()}
+            onCreateFileInFolder={(folder) => void handleCreateFile(folder.id)}
+            onCreateFolderInFolder={(folder) => void handleCreateFolder(folder.id)}
+            onRename={(node) => void handleRenameNode(node)}
+            onDelete={(node) => void handleDeleteNode(node)}
             canEdit={canEdit}
           />
         </div>

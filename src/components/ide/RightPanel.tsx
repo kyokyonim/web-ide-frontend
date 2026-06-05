@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { Button } from '../ui/Button';
 import { roleBadgeClass } from '../../themes/tokens';
@@ -116,6 +124,7 @@ export function RightPanel({ projectId, activeFileId, activeFileName }: RightPan
   const [participantsError, setParticipantsError] = useState('');
   const [participantsLoading, setParticipantsLoading] = useState(false);
   const chatSocketRef = useRef<ReturnType<typeof connectChatSocket> | null>(null);
+  const chatComposingRef = useRef(false);
   const myUserId = Number(localStorage.getItem('userId')) || null;
 
   const appendMessage = useCallback(
@@ -284,7 +293,7 @@ export function RightPanel({ projectId, activeFileId, activeFileName }: RightPan
 
   const handleSendChat = () => {
     const trimmed = chatInput.trim();
-    if (!trimmed || !chatSocketRef.current) return;
+    if (!trimmed || !chatSocketRef.current || chatComposingRef.current) return;
 
     try {
       chatSocketRef.current.send(trimmed);
@@ -294,6 +303,17 @@ export function RightPanel({ projectId, activeFileId, activeFileName }: RightPan
       console.error(err);
       setChatError(err instanceof Error ? err.message : '메시지 전송에 실패했습니다.');
     }
+  };
+
+  const handleChatKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+
+    if (event.nativeEvent.isComposing || chatComposingRef.current || event.keyCode === 229) {
+      return;
+    }
+
+    event.preventDefault();
+    handleSendChat();
   };
 
   const handleCreateComment = async () => {
@@ -392,12 +412,15 @@ export function RightPanel({ projectId, activeFileId, activeFileName }: RightPan
               rows={2}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendChat();
-                }
+              onCompositionStart={() => {
+                chatComposingRef.current = true;
               }}
+              onCompositionEnd={() => {
+                window.setTimeout(() => {
+                  chatComposingRef.current = false;
+                }, 0);
+              }}
+              onKeyDown={handleChatKeyDown}
             />
             <Button size="sm" className="w-full" onClick={handleSendChat} disabled={!chatConnected}>
               전송
